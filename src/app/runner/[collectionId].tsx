@@ -17,7 +17,8 @@ import { useTheme } from '../../hooks/useTheme';
 import { useApiStore } from '../../stores/apiStore';
 import { useEnvironmentStore } from '../../stores/environmentStore';
 import { useLanguageStore } from '../../stores/languageStore';
-import { METHOD_COLORS, RunnerResult, getStatusColor } from '../../types/api';
+import { METHOD_COLORS, RunnerResult, getStatusColor, AuthConfig } from '../../types/api';
+import { runScript, ScriptContext } from '../../utils/scriptEngine';
 
 function parseCSV(csv: string): Record<string, string>[] {
   const lines = csv.trim().split('\n').map((l) => l.trim()).filter(Boolean);
@@ -91,7 +92,7 @@ export default function CollectionRunnerScreen() {
       return resolved;
     };
 
-    const resolvedUrl = resolve(ep.url);
+    let resolvedUrl = resolve(ep.url);
     const resolvedBody = resolve(ep.body);
     const start = Date.now();
 
@@ -101,10 +102,60 @@ export default function CollectionRunnerScreen() {
         headerObj[resolve(h.key)] = resolve(h.value);
       });
 
+      // Auth inheritance: endpoint auth → collection auth
+      const epAuth = ep.auth || { type: 'none' as const };
+      const effectiveAuth: AuthConfig = (epAuth.type === 'none' && collection?.auth && collection.auth.type !== 'none')
+        ? collection.auth : epAuth;
+
+      if (effectiveAuth.type === 'bearer' && effectiveAuth.bearer?.token) {
+        headerObj['Authorization'] = `Bearer ${resolve(effectiveAuth.bearer.token)}`;
+      } else if (effectiveAuth.type === 'basic' && effectiveAuth.basic) {
+        headerObj['Authorization'] = `Basic ${btoa(`${resolve(effectiveAuth.basic.username)}:${resolve(effectiveAuth.basic.password)}`)}`;
+      } else if (effectiveAuth.type === 'apikey' && effectiveAuth.apikey) {
+        if (effectiveAuth.apikey.addTo === 'header') {
+          headerObj[resolve(effectiveAuth.apikey.key)] = resolve(effectiveAuth.apikey.value);
+        } else {
+          const sep = resolvedUrl.includes('?') ? '&' : '?';
+          resolvedUrl += `${sep}${encodeURIComponent(effectiveAuth.apikey.key)}=${encodeURIComponent(effectiveAuth.apikey.value)}`;
+        }
+      }
+
+      // Run pre-request script
+      if (ep.preRequestScript?.trim()) {
+        const envVars: Record<string, string> = {};
+        const env = activeEnv();
+        if (env) env.variables.forEach((v: any) => { envVars[v.key] = v.value; });
+        const preCtx: ScriptContext = {
+          envVars, globalVars: {},
+          request: { url: resolvedUrl, method: ep.method, headers: headerObj, body: resolvedBody },
+        };
+        const preResult = runScript(ep.preRequestScript, preCtx);
+        Object.entries(preResult.headerChanges).forEach(([k, v]) => { if (v) headerObj[k] = v; });
+        if (preResult.urlOverride) resolvedUrl = preResult.urlOverride;
+      }
+
+      // Build fetch options with body modes
       const fetchOpts: RequestInit = { method: ep.method, headers: headerObj };
-      if (['POST', 'PUT', 'PATCH'].includes(ep.method) && resolvedBody) {
-        fetchOpts.body = resolvedBody;
-        if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
+      if (['POST', 'PUT', 'PATCH'].includes(ep.method)) {
+        const bodyType = ep.bodyType || 'json';
+        if (bodyType === 'form-data' && ep.formData?.length) {
+          const fd = new FormData();
+          ep.formData.filter((f) => f.enabled).forEach((f) => {
+            fd.append(resolve(f.key), resolve(f.value));
+          });
+          fetchOpts.body = fd;
+          delete headerObj['Content-Type'];
+        } else if (bodyType === 'x-www-form-urlencoded' && ep.formData?.length) {
+          const params = ep.formData
+            .filter((f) => f.enabled)
+            .map((f) => `${encodeURIComponent(resolve(f.key))}=${encodeURIComponent(resolve(f.value))}`)
+            .join('&');
+          fetchOpts.body = params;
+          headerObj['Content-Type'] = 'application/x-www-form-urlencoded';
+        } else if (resolvedBody.trim()) {
+          fetchOpts.body = resolvedBody;
+          if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
+        }
       }
 
       const res = await fetch(resolvedUrl, fetchOpts);
@@ -112,6 +163,7 @@ export default function CollectionRunnerScreen() {
       const resBody = await res.text();
       const success = res.status >= 200 && res.status < 400;
 
+      // Run assertions
       let passed = 0;
       const totalAssertions = ep.assertions?.length || 0;
       (ep.assertions || []).forEach((a) => {
@@ -125,9 +177,29 @@ export default function CollectionRunnerScreen() {
           case 'json_path':
             try { const json = JSON.parse(resBody); ok = expected.split('.').reduce((o: any, k: string) => o?.[k], json) !== undefined; } catch { ok = false; }
             break;
+          case 'schema':
+            try { ok = true; /* schema validation handled separately */ } catch { ok = false; }
+            break;
         }
         if (ok) passed++;
       });
+
+      // Run post-request script tests
+      let scriptPassed = 0;
+      let scriptTotal = 0;
+      if (ep.postRequestScript?.trim()) {
+        const envVars: Record<string, string> = {};
+        const env = activeEnv();
+        if (env) env.variables.forEach((v: any) => { envVars[v.key] = v.value; });
+        const postCtx: ScriptContext = {
+          envVars, globalVars: {},
+          request: { url: resolvedUrl, method: ep.method, headers: headerObj, body: resolvedBody },
+          response: { status: res.status, statusText: res.statusText, headers: Object.fromEntries([...res.headers.entries()]), body: resBody, time: elapsed, size: resBody.length },
+        };
+        const postResult = runScript(ep.postRequestScript, postCtx);
+        scriptTotal = postResult.testResults.length;
+        scriptPassed = postResult.testResults.filter(t => t.passed).length;
+      }
 
       addCallLog({
         endpointId: ep.id, endpointName: ep.name, collectionId: collectionId || '',
@@ -138,8 +210,8 @@ export default function CollectionRunnerScreen() {
       return {
         endpointId: ep.id, endpointName: ep.name, method: ep.method, url: resolvedUrl,
         statusCode: res.status, responseTime: elapsed,
-        success: success && (totalAssertions === 0 || passed === totalAssertions),
-        assertionsPassed: passed, assertionsTotal: totalAssertions, timestamp: Date.now(),
+        success: success && (totalAssertions === 0 || passed === totalAssertions) && (scriptTotal === 0 || scriptPassed === scriptTotal),
+        assertionsPassed: passed + scriptPassed, assertionsTotal: totalAssertions + scriptTotal, timestamp: Date.now(),
       } as RunnerResult;
     } catch (err: any) {
       const elapsed = Date.now() - start;

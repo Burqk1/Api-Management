@@ -118,6 +118,7 @@ export interface ApiCollection {
   color: string;
   icon: string;
   baseUrl: string;
+  auth?: AuthConfig;
   createdAt: number;
 }
 

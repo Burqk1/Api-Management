@@ -195,6 +195,10 @@ export default function RootLayout() {
           name="scripteditor"
           options={{ headerBackTitle: t('cancel'), title: t('scriptEditor'), presentation: 'modal' }}
         />
+        <Stack.Screen
+          name="history"
+          options={{ headerBackTitle: t('cancel'), title: t('requestHistory') }}
+        />
       </Stack>
     </>
   );

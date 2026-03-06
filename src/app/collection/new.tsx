@@ -13,6 +13,8 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
 import { useApiStore } from '../../stores/apiStore';
+import { useLanguageStore } from '../../stores/languageStore';
+import { AuthConfig, AuthType } from '../../types/api';
 
 const COLORS = ['#58A6FF', '#3FB950', '#F0883E', '#BC8CFF', '#F778BA', '#D29922', '#FF6961', '#8B949E'];
 const ICONS = [
@@ -24,12 +26,14 @@ export default function NewCollectionScreen() {
   const { colors, isDark } = useTheme();
   const router = useRouter();
   const addCollection = useApiStore((s) => s.addCollection);
+  const t = useLanguageStore((s) => s.t);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [selectedColor, setSelectedColor] = useState(COLORS[0]);
   const [selectedIcon, setSelectedIcon] = useState(ICONS[0]);
+  const [auth, setAuth] = useState<AuthConfig>({ type: 'none' });
 
   const handleCreate = () => {
     if (!name.trim()) return;
@@ -39,6 +43,7 @@ export default function NewCollectionScreen() {
       baseUrl: baseUrl.trim(),
       color: selectedColor,
       icon: selectedIcon,
+      auth: auth.type !== 'none' ? auth : undefined,
     });
     router.back();
   };
@@ -121,6 +126,72 @@ export default function NewCollectionScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Collection Auth */}
+        <Text style={[styles.label, { color: colors.textSecondary }]}>{t('collectionAuth')}</Text>
+        <Text style={{ color: colors.textTertiary, fontSize: 12, marginBottom: 8, marginLeft: 4 }}>{t('collectionAuthHint')}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            {(['none', 'bearer', 'basic', 'apikey'] as AuthType[]).map((type) => (
+              <TouchableOpacity
+                key={type}
+                onPress={() => setAuth({ ...auth, type })}
+                style={[styles.iconBtn, { backgroundColor: auth.type === type ? selectedColor + '25' : inputBg }]}
+              >
+                <Text style={{ color: auth.type === type ? selectedColor : colors.textSecondary, fontSize: 12, fontWeight: '600' }}>
+                  {type === 'none' ? t('none') : type === 'bearer' ? 'Bearer' : type === 'basic' ? 'Basic' : 'API Key'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+        {auth.type === 'bearer' && (
+          <TextInput
+            style={[styles.input, { backgroundColor: inputBg, color: colors.text, marginTop: 8 }]}
+            value={auth.bearer?.token || ''}
+            onChangeText={(v) => setAuth({ ...auth, bearer: { token: v } })}
+            placeholder={t('bearerTokenPlaceholder')}
+            placeholderTextColor={colors.textTertiary}
+            autoCapitalize="none"
+          />
+        )}
+        {auth.type === 'basic' && (
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <TextInput
+              style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
+              value={auth.basic?.username || ''}
+              onChangeText={(v) => setAuth({ ...auth, basic: { username: v, password: auth.basic?.password || '' } })}
+              placeholder={t('username')}
+              placeholderTextColor={colors.textTertiary}
+            />
+            <TextInput
+              style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
+              value={auth.basic?.password || ''}
+              onChangeText={(v) => setAuth({ ...auth, basic: { username: auth.basic?.username || '', password: v } })}
+              placeholder={t('password')}
+              placeholderTextColor={colors.textTertiary}
+              secureTextEntry
+            />
+          </View>
+        )}
+        {auth.type === 'apikey' && (
+          <View style={{ gap: 8, marginTop: 8 }}>
+            <TextInput
+              style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
+              value={auth.apikey?.key || ''}
+              onChangeText={(v) => setAuth({ ...auth, apikey: { key: v, value: auth.apikey?.value || '', addTo: auth.apikey?.addTo || 'header' } })}
+              placeholder={t('key')}
+              placeholderTextColor={colors.textTertiary}
+            />
+            <TextInput
+              style={[styles.input, { backgroundColor: inputBg, color: colors.text }]}
+              value={auth.apikey?.value || ''}
+              onChangeText={(v) => setAuth({ ...auth, apikey: { key: auth.apikey?.key || '', value: v, addTo: auth.apikey?.addTo || 'header' } })}
+              placeholder={t('value')}
+              placeholderTextColor={colors.textTertiary}
+            />
+          </View>
+        )}
 
         {/* Preview */}
         <View style={[styles.preview, { backgroundColor: inputBg }]}>

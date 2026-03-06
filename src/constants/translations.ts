@@ -554,6 +554,34 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Script Editor (tool desc)
     scriptEditorDesc: 'Edit pre/post request scripts with snippets',
+
+    // Collection Auth
+    collectionAuth: 'COLLECTION AUTH',
+    collectionAuthHint: 'Auth applied to all endpoints in this collection (can be overridden per endpoint)',
+    inheritedFromCollection: 'Inherited from collection',
+
+    // File Upload
+    pickFile: 'Pick File',
+
+    // Request History
+    requestHistory: 'Request History',
+    requestHistoryDesc: 'View all sent API requests',
+    allMethods: 'All',
+    clearAll: 'Clear All',
+    noRequestHistory: 'No request history',
+    noRequestHistoryHint: 'Send API requests to see them here.',
+
+    // Export
+    exportFormat: 'Export Format',
+    selectExportFormat: 'Choose export format',
+    exportPostman: 'Postman v2.1',
+    exportOpenAPI: 'OpenAPI 3.0',
+
+    // Script Engine
+    scriptTests: 'Tests',
+    scriptConsole: 'Console',
+    scriptTestsPassed: 'passed',
+    scriptTestsFailed: 'failed',
   },
 
   tr: {
@@ -1109,5 +1137,33 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Script Editor (tool desc)
     scriptEditorDesc: 'On/son istek scriptlerini kod parcalariyla duzenle',
+
+    // Collection Auth
+    collectionAuth: 'KOLEKSIYON KIMLIK DOGRULAMASI',
+    collectionAuthHint: 'Bu koleksiyondaki tum endpointlere uygulanan auth (endpoint bazinda gecersiz kilinabilir)',
+    inheritedFromCollection: 'Koleksiyondan miras alindi',
+
+    // File Upload
+    pickFile: 'Dosya Sec',
+
+    // Request History
+    requestHistory: 'Istek Gecmisi',
+    requestHistoryDesc: 'Gonderilen tum API isteklerini goruntule',
+    allMethods: 'Tumu',
+    clearAll: 'Hepsini Temizle',
+    noRequestHistory: 'Istek gecmisi yok',
+    noRequestHistoryHint: 'Burada gormek icin API istekleri gonderin.',
+
+    // Export
+    exportFormat: 'Disari Aktarma Formati',
+    selectExportFormat: 'Disari aktarma formatini secin',
+    exportPostman: 'Postman v2.1',
+    exportOpenAPI: 'OpenAPI 3.0',
+
+    // Script Engine
+    scriptTests: 'Testler',
+    scriptConsole: 'Konsol',
+    scriptTestsPassed: 'basarili',
+    scriptTestsFailed: 'basarisiz',
   },
 };

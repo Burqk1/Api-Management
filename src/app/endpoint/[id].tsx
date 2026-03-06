@@ -28,6 +28,8 @@ import { generateCode, CodeLang } from '../../utils/codeGen';
 import { tryValidateSchema } from '../../utils/schemaValidator';
 import JsonHighlight from '../../components/JsonHighlight';
 import { Share } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import { runScript, ScriptContext } from '../../utils/scriptEngine';
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 const ASSERTION_TYPES = [
@@ -67,7 +69,9 @@ export default function EndpointDetailScreen() {
   const getCookieHeader = useCookieStore((s) => s.getCookieHeader);
   const saveVersion = useHistoryStore((s) => s.saveVersion);
 
+  const collections = useApiStore((s) => s.collections);
   const endpoint = endpoints.find((e) => e.id === id);
+  const collection = collections.find((c) => c.id === endpoint?.collectionId);
 
   const [url, setUrl] = useState(endpoint?.url || '');
   const [method, setMethod] = useState<HttpMethod>(endpoint?.method || 'GET');
@@ -97,10 +101,12 @@ export default function EndpointDetailScreen() {
   } | null>(null);
   const [prevResponse, setPrevResponse] = useState<string | null>(null);
   const [assertionResults, setAssertionResults] = useState<{ id: string; passed: boolean }[]>([]);
+  const [scriptConsole, setScriptConsole] = useState<string[]>([]);
+  const [scriptTestResults, setScriptTestResults] = useState<{ name: string; passed: boolean; error?: string }[]>([]);
   const [error, setError] = useState('');
 
   const [activeTab, setActiveTab] = useState<'headers' | 'body' | 'auth' | 'pre-req' | 'post-req' | 'assertions' | 'graphql'>('headers');
-  const [responseTab, setResponseTab] = useState<'body' | 'headers' | 'diff'>('body');
+  const [responseTab, setResponseTab] = useState<'body' | 'headers' | 'diff' | 'tests' | 'console'>('body');
   const [showCurlModal, setShowCurlModal] = useState(false);
   const [curlInput, setCurlInput] = useState('');
   const [showCodeGen, setShowCodeGen] = useState(false);
@@ -147,18 +153,25 @@ export default function EndpointDetailScreen() {
       updateEndpoint(endpoint.id, { url, method, body, bodyType, formData, headers, assertions, auth, preRequestScript, postRequestScript, isGraphQL, graphqlQuery, graphqlVariables });
     }
 
+    // Build script context
+    const envVars: Record<string, string> = {};
+    const globalVars: Record<string, string> = {};
+    if (env) env.variables.forEach((v: any) => { envVars[v.key] = v.value; });
+
     // Run pre-request script
     if (preRequestScript.trim()) {
-      try {
-        const scriptFn = new Function('variables', 'headers', preRequestScript);
-        const scriptHeaders: Record<string, string> = {};
-        scriptFn({}, scriptHeaders);
-        Object.entries(scriptHeaders).forEach(([k, v]) => {
-          if (typeof v === 'string') {
-            setHeaders((prev) => [...prev, { key: k, value: v, enabled: true }]);
-          }
-        });
-      } catch {}
+      const preCtx: ScriptContext = {
+        envVars, globalVars,
+        request: { url, method, headers: Object.fromEntries(headers.filter(h => h.enabled).map(h => [h.key, h.value])), body },
+      };
+      const preResult = runScript(preRequestScript, preCtx);
+      setScriptConsole(preResult.console);
+      // Apply header changes
+      Object.entries(preResult.headerChanges).forEach(([k, v]) => {
+        if (v) setHeaders((prev) => [...prev.filter(h => h.key !== k), { key: k, value: v, enabled: true }]);
+      });
+      if (preResult.urlOverride) setUrl(preResult.urlOverride);
+      if (preResult.bodyOverride) setBody(preResult.bodyOverride);
     }
 
     let resolvedUrl = resolveVariables(url);
@@ -182,30 +195,30 @@ export default function EndpointDetailScreen() {
     const cookieHeader = getCookieHeader(resolvedUrl);
     if (cookieHeader) headerObj['Cookie'] = cookieHeader;
 
-    // Apply auth
-    if (auth.type === 'bearer' && auth.bearer?.token) {
-      headerObj['Authorization'] = `Bearer ${resolveVariables(auth.bearer.token)}`;
-    } else if (auth.type === 'oauth2' && auth.oauth2) {
-      let token: string | undefined = auth.oauth2.accessToken;
-      // If no token or expired, try to fetch one
-      if (!token || (auth.oauth2.tokenExpiry && auth.oauth2.tokenExpiry < Date.now())) {
+    // Apply auth (inherit from collection if endpoint auth is 'none')
+    const effectiveAuth = (auth.type === 'none' && collection?.auth && collection.auth.type !== 'none') ? collection.auth : auth;
+    if (effectiveAuth.type === 'bearer' && effectiveAuth.bearer?.token) {
+      headerObj['Authorization'] = `Bearer ${resolveVariables(effectiveAuth.bearer.token)}`;
+    } else if (effectiveAuth.type === 'oauth2' && effectiveAuth.oauth2) {
+      let token: string | undefined = effectiveAuth.oauth2.accessToken;
+      if (!token || (effectiveAuth.oauth2.tokenExpiry && effectiveAuth.oauth2.tokenExpiry < Date.now())) {
         try {
-          token = (await fetchOAuth2Token(auth.oauth2, resolveVariables)) ?? undefined;
+          token = (await fetchOAuth2Token(effectiveAuth.oauth2, resolveVariables)) ?? undefined;
           if (token) {
-            setAuth({ ...auth, oauth2: { ...auth.oauth2, accessToken: token, tokenExpiry: Date.now() + 3600000 } });
+            setAuth({ ...auth, oauth2: { ...effectiveAuth.oauth2, accessToken: token, tokenExpiry: Date.now() + 3600000 } });
           }
         } catch {}
       }
       if (token) headerObj['Authorization'] = `Bearer ${token}`;
-    } else if (auth.type === 'basic' && auth.basic) {
-      const encoded = btoa(`${resolveVariables(auth.basic.username)}:${resolveVariables(auth.basic.password)}`);
+    } else if (effectiveAuth.type === 'basic' && effectiveAuth.basic) {
+      const encoded = btoa(`${resolveVariables(effectiveAuth.basic.username)}:${resolveVariables(effectiveAuth.basic.password)}`);
       headerObj['Authorization'] = `Basic ${encoded}`;
-    } else if (auth.type === 'apikey' && auth.apikey) {
-      if (auth.apikey.addTo === 'header') {
-        headerObj[resolveVariables(auth.apikey.key)] = resolveVariables(auth.apikey.value);
+    } else if (effectiveAuth.type === 'apikey' && effectiveAuth.apikey) {
+      if (effectiveAuth.apikey.addTo === 'header') {
+        headerObj[resolveVariables(effectiveAuth.apikey.key)] = resolveVariables(effectiveAuth.apikey.value);
       } else {
         const sep = resolvedUrl.includes('?') ? '&' : '?';
-        resolvedUrl += `${sep}${encodeURIComponent(auth.apikey.key)}=${encodeURIComponent(auth.apikey.value)}`;
+        resolvedUrl += `${sep}${encodeURIComponent(effectiveAuth.apikey.key)}=${encodeURIComponent(effectiveAuth.apikey.value)}`;
       }
     }
 
@@ -286,16 +299,14 @@ export default function EndpointDetailScreen() {
 
       // Run post-request script
       if (postRequestScript.trim()) {
-        try {
-          const postScriptFn = new Function('response', 'headers', 'status', 'time', 'assertions', postRequestScript);
-          postScriptFn(
-            { body: resBody, headers: resHeaders, status: res.status, time: elapsed },
-            resHeaders,
-            res.status,
-            elapsed,
-            aResults
-          );
-        } catch {}
+        const postCtx: ScriptContext = {
+          envVars, globalVars,
+          request: { url: resolvedUrl, method, headers: headerObj, body: resolvedBody },
+          response: { status: res.status, statusText: res.statusText, headers: resHeaders, body: resBody, time: elapsed, size: resBody.length },
+        };
+        const postResult = runScript(postRequestScript, postCtx);
+        setScriptConsole((prev) => [...prev, ...postResult.console]);
+        setScriptTestResults(postResult.testResults);
       }
 
       addCallLog({
@@ -658,6 +669,24 @@ export default function EndpointDetailScreen() {
                       <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
                     </TouchableOpacity>
                   </View>
+                  {bodyType === 'form-data' && (
+                    <TouchableOpacity
+                      onPress={async () => {
+                        try {
+                          const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
+                          if (!result.canceled && result.assets?.[0]) {
+                            const file = result.assets[0];
+                            setFormData([...formData, { key: newHeaderKey.trim() || 'file', value: file.name, type: 'file', enabled: true }]);
+                            setNewHeaderKey('');
+                          }
+                        } catch {}
+                      }}
+                      style={[styles.addHeaderBtn, { backgroundColor: '#FF950018', flexDirection: 'row', gap: 6, width: 'auto', paddingHorizontal: 12, marginTop: 6 }]}
+                    >
+                      <MaterialCommunityIcons name="file-upload-outline" size={16} color="#FF9500" />
+                      <Text style={{ color: '#FF9500', fontSize: 12, fontWeight: '600' }}>{t('pickFile')}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </View>
@@ -666,6 +695,15 @@ export default function EndpointDetailScreen() {
           {/* Auth Tab */}
           {activeTab === 'auth' && (
             <View style={[styles.tabContent, { backgroundColor: inputBg }]}>
+              {/* Collection Auth Inheritance Badge */}
+              {auth.type === 'none' && collection?.auth && collection.auth.type !== 'none' && (
+                <View style={[styles.envBadge, { backgroundColor: collection.color + '15', marginBottom: 10 }]}>
+                  <MaterialCommunityIcons name="shield-check-outline" size={14} color={collection.color} />
+                  <Text style={{ color: collection.color, fontSize: 12, fontWeight: '600' }}>
+                    {t('inheritedFromCollection')}: {collection.auth.type.toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {(['none', 'bearer', 'basic', 'apikey', 'oauth2'] as AuthType[]).map((type) => (
@@ -1027,15 +1065,16 @@ export default function EndpointDetailScreen() {
                 </Text>
               </View>
 
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.tabBar}>
-                {(['body', 'headers', ...(prevResponse ? ['diff' as const] : [])] as const).map((tab) => (
+                {(['body', 'headers', ...(prevResponse ? ['diff' as const] : []), ...(scriptTestResults.length > 0 ? ['tests' as const] : []), ...(scriptConsole.length > 0 ? ['console' as const] : [])] as const).map((tab) => (
                   <TouchableOpacity
                     key={tab}
                     onPress={() => setResponseTab(tab as any)}
                     style={[styles.tab, responseTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
                   >
                     <Text style={[styles.tabText, { color: responseTab === tab ? colors.primary : colors.textSecondary }]}>
-                      {tab === 'body' ? 'Body' : tab === 'headers' ? 'Headers' : 'Diff'}
+                      {tab === 'body' ? 'Body' : tab === 'headers' ? 'Headers' : tab === 'diff' ? 'Diff' : tab === 'tests' ? `Tests (${scriptTestResults.filter(t => t.passed).length}/${scriptTestResults.length})` : 'Console'}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -1050,6 +1089,7 @@ export default function EndpointDetailScreen() {
                   <MaterialCommunityIcons name="content-copy" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
+              </ScrollView>
 
               {responseTab === 'body' ? (
                 <View style={[styles.responseBody, { backgroundColor: inputBg }]}>
@@ -1068,7 +1108,29 @@ export default function EndpointDetailScreen() {
                     </View>
                   ))}
                 </View>
-              ) : prevResponse ? (
+              ) : responseTab === 'tests' ? (
+                <View style={[styles.tabContent, { backgroundColor: inputBg }]}>
+                  {scriptTestResults.map((test, i) => (
+                    <View key={i} style={[styles.headerRow, { borderBottomColor: colors.divider }]}>
+                      <MaterialCommunityIcons
+                        name={test.passed ? 'check-circle' : 'close-circle'}
+                        size={18}
+                        color={test.passed ? '#3FB950' : '#FF6961'}
+                      />
+                      <Text style={[styles.headerVal, { color: colors.text, flex: 1 }]}>{test.name}</Text>
+                      {test.error && <Text style={{ color: '#FF6961', fontSize: 11 }} numberOfLines={1}>{test.error}</Text>}
+                    </View>
+                  ))}
+                </View>
+              ) : responseTab === 'console' ? (
+                <View style={[styles.responseBody, { backgroundColor: inputBg }]}>
+                  {scriptConsole.map((line, i) => (
+                    <Text key={i} style={{ color: line.startsWith('[ERROR]') ? '#FF6961' : line.startsWith('[WARN]') ? '#D29922' : colors.text, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', fontSize: 12, lineHeight: 18 }}>
+                      {line}
+                    </Text>
+                  ))}
+                </View>
+              ) : responseTab === 'diff' && prevResponse ? (
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                   <View style={[styles.diffContainer, { backgroundColor: inputBg }]}>
                     {computeDiff(prevResponse, response.body).map((line, i) => (
@@ -1176,8 +1238,13 @@ export default function EndpointDetailScreen() {
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
                   {([
+                    { lang: 'curl' as CodeLang, label: 'cURL' },
                     { lang: 'javascript' as CodeLang, label: 'JavaScript' },
                     { lang: 'python' as CodeLang, label: 'Python' },
+                    { lang: 'go' as CodeLang, label: 'Go' },
+                    { lang: 'php' as CodeLang, label: 'PHP' },
+                    { lang: 'ruby' as CodeLang, label: 'Ruby' },
+                    { lang: 'csharp' as CodeLang, label: 'C#' },
                     { lang: 'swift' as CodeLang, label: 'Swift' },
                     { lang: 'kotlin' as CodeLang, label: 'Kotlin' },
                   ]).map((opt) => (
@@ -1200,13 +1267,13 @@ export default function EndpointDetailScreen() {
                   style={[styles.responseBody, { backgroundColor: inputBg, color: colors.text, minWidth: '100%' }]}
                   selectable
                 >
-                  {generateCode({ method, url, headers, body }, codeLang)}
+                  {generateCode({ method, url, headers, body, auth }, codeLang)}
                 </Text>
               </ScrollView>
               <TouchableOpacity
                 style={[styles.modalBtn, { backgroundColor: colors.primary }]}
                 onPress={async () => {
-                  await Clipboard.setStringAsync(generateCode({ method, url, headers, body }, codeLang));
+                  await Clipboard.setStringAsync(generateCode({ method, url, headers, body, auth }, codeLang));
                   Alert.alert(t('codeGen'), t('exportedToClipboard'));
                 }}
               >

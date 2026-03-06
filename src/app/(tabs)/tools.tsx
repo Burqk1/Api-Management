@@ -57,6 +57,7 @@ export default function ToolsScreen() {
         { key: 'aiAnalysis', icon: 'robot-outline', color: '#FF9500', route: '/aianalysis' },
         { key: 'apiDocs', icon: 'file-document-multiple-outline', color: '#3FB950', route: '/apidocs' },
         { key: 'responseViewer', icon: 'eye-outline', color: '#64D2FF', route: '/responseviewer' },
+        { key: 'requestHistory', icon: 'history', color: '#D29922', route: '/history' },
       ],
     },
     {

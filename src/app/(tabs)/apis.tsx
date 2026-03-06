@@ -19,6 +19,7 @@ import { METHOD_COLORS } from '../../types/api';
 import { useLanguageStore } from '../../stores/languageStore';
 import * as Clipboard from 'expo-clipboard';
 import SwipeableRow from '../../components/SwipeableRow';
+import { exportToPostman, exportToOpenAPI } from '../../utils/exportFormats';
 
 export default function ApisScreen() {
   const { colors, isDark } = useTheme();
@@ -39,10 +40,38 @@ export default function ApisScreen() {
 
   const padding = Platform.OS === 'web' ? 32 : 20;
 
-  const handleExport = async (colId: string) => {
-    const json = exportCollection(colId);
-    await Clipboard.setStringAsync(json);
-    Alert.alert(t('exported'), t('exportedToClipboard'));
+  const handleExport = (colId: string) => {
+    const col = collections.find((c) => c.id === colId);
+    const colEps = endpoints.filter((e) => e.collectionId === colId);
+    if (!col) return;
+
+    Alert.alert(t('exportFormat'), t('selectExportFormat'), [
+      {
+        text: 'JSON',
+        onPress: async () => {
+          const json = exportCollection(colId);
+          await Clipboard.setStringAsync(json);
+          Alert.alert(t('exported'), t('exportedToClipboard'));
+        },
+      },
+      {
+        text: 'Postman v2.1',
+        onPress: async () => {
+          const postman = exportToPostman(col, colEps);
+          await Clipboard.setStringAsync(postman);
+          Alert.alert(t('exported'), t('exportedToClipboard'));
+        },
+      },
+      {
+        text: 'OpenAPI 3.0',
+        onPress: async () => {
+          const openapi = exportToOpenAPI(col, colEps);
+          await Clipboard.setStringAsync(openapi);
+          Alert.alert(t('exported'), t('exportedToClipboard'));
+        },
+      },
+      { text: t('cancel'), style: 'cancel' },
+    ]);
   };
 
   const handleImport = () => {

@@ -21,6 +21,7 @@ import { useEnvironmentStore } from '../../stores/environmentStore';
 import { HttpMethod, METHOD_COLORS, ApiHeader, TestAssertion, AuthConfig, AuthType, BodyType, FormDataField, OAuth2Config, OAuth2GrantType, getStatusColor, generateId } from '../../types/api';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useCookieStore } from '../../stores/cookieStore';
+import { useHistoryStore } from '../../stores/historyStore';
 import * as Clipboard from 'expo-clipboard';
 import { endpointToCurl, parseCurl } from '../../utils/curl';
 import { generateCode, CodeLang } from '../../utils/codeGen';
@@ -64,6 +65,7 @@ export default function EndpointDetailScreen() {
   const activeEnv = useEnvironmentStore((s) => s.getActiveEnv);
   const parseCookiesFromHeaders = useCookieStore((s) => s.parseCookiesFromHeaders);
   const getCookieHeader = useCookieStore((s) => s.getCookieHeader);
+  const saveVersion = useHistoryStore((s) => s.saveVersion);
 
   const endpoint = endpoints.find((e) => e.id === id);
 
@@ -76,6 +78,7 @@ export default function EndpointDetailScreen() {
   const [assertions, setAssertions] = useState<TestAssertion[]>(endpoint?.assertions || []);
   const [auth, setAuth] = useState<AuthConfig>(endpoint?.auth || { type: 'none' });
   const [preRequestScript, setPreRequestScript] = useState(endpoint?.preRequestScript || '');
+  const [postRequestScript, setPostRequestScript] = useState(endpoint?.postRequestScript || '');
   const [isGraphQL, setIsGraphQL] = useState(endpoint?.isGraphQL || false);
   const [graphqlQuery, setGraphqlQuery] = useState(endpoint?.graphqlQuery || '');
   const [graphqlVariables, setGraphqlVariables] = useState(endpoint?.graphqlVariables || '');
@@ -96,7 +99,7 @@ export default function EndpointDetailScreen() {
   const [assertionResults, setAssertionResults] = useState<{ id: string; passed: boolean }[]>([]);
   const [error, setError] = useState('');
 
-  const [activeTab, setActiveTab] = useState<'headers' | 'body' | 'auth' | 'pre-req' | 'assertions' | 'graphql'>('headers');
+  const [activeTab, setActiveTab] = useState<'headers' | 'body' | 'auth' | 'pre-req' | 'post-req' | 'assertions' | 'graphql'>('headers');
   const [responseTab, setResponseTab] = useState<'body' | 'headers' | 'diff'>('body');
   const [showCurlModal, setShowCurlModal] = useState(false);
   const [curlInput, setCurlInput] = useState('');
@@ -140,7 +143,8 @@ export default function EndpointDetailScreen() {
 
     // Save changes
     if (endpoint) {
-      updateEndpoint(endpoint.id, { url, method, body, bodyType, formData, headers, assertions, auth, preRequestScript, isGraphQL, graphqlQuery, graphqlVariables });
+      saveVersion(endpoint);
+      updateEndpoint(endpoint.id, { url, method, body, bodyType, formData, headers, assertions, auth, preRequestScript, postRequestScript, isGraphQL, graphqlQuery, graphqlVariables });
     }
 
     // Run pre-request script
@@ -279,6 +283,20 @@ export default function EndpointDetailScreen() {
         return { id: a.id, passed };
       });
       setAssertionResults(aResults);
+
+      // Run post-request script
+      if (postRequestScript.trim()) {
+        try {
+          const postScriptFn = new Function('response', 'headers', 'status', 'time', 'assertions', postRequestScript);
+          postScriptFn(
+            { body: resBody, headers: resHeaders, status: res.status, time: elapsed },
+            resHeaders,
+            res.status,
+            elapsed,
+            aResults
+          );
+        } catch {}
+      }
 
       addCallLog({
         endpointId: endpoint?.id || '',
@@ -447,6 +465,13 @@ export default function EndpointDetailScreen() {
                 />
               </TouchableOpacity>
               <TouchableOpacity
+                style={[styles.actionPill, { backgroundColor: inputBg }]}
+                onPress={() => router.push(`/endpointhistory?endpointId=${endpoint.id}` as any)}
+              >
+                <MaterialCommunityIcons name="history" size={16} color={colors.textSecondary} />
+                <Text style={[styles.actionPillText, { color: colors.textSecondary }]}>{t('versionHistory')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={[styles.actionPill, { backgroundColor: isMonitored ? '#3FB95015' : inputBg }]}
                 onPress={toggleMonitor}
               >
@@ -503,14 +528,14 @@ export default function EndpointDetailScreen() {
           {/* Request Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={[styles.tabBar, { marginTop: 0 }]}>
-              {(['headers', 'body', 'auth', 'pre-req', ...(isGraphQL ? ['graphql' as const] : []), 'assertions'] as const).map((tab) => (
+              {(['headers', 'body', 'auth', 'pre-req', 'post-req', ...(isGraphQL ? ['graphql' as const] : []), 'assertions'] as const).map((tab) => (
                 <TouchableOpacity
                   key={tab}
                   onPress={() => setActiveTab(tab as any)}
                   style={[styles.tab, activeTab === tab && { borderBottomColor: colors.primary, borderBottomWidth: 2 }]}
                 >
                   <Text style={[styles.tabText, { color: activeTab === tab ? colors.primary : colors.textSecondary }]}>
-                    {tab === 'auth' ? t('auth') : tab === 'pre-req' ? t('preReq') : tab === 'graphql' ? 'GraphQL' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {tab === 'auth' ? t('auth') : tab === 'pre-req' ? t('preReq') : tab === 'post-req' ? t('postReq') : tab === 'graphql' ? 'GraphQL' : tab.charAt(0).toUpperCase() + tab.slice(1)}
                     {tab === 'headers' && headers.length > 0 ? ` (${headers.length})` : ''}
                     {tab === 'assertions' && assertions.length > 0 ? ` (${assertions.length})` : ''}
                   </Text>
@@ -864,6 +889,27 @@ export default function EndpointDetailScreen() {
                   GraphQL {isGraphQL ? 'ON' : 'OFF'}
                 </Text>
               </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Post-Request Script Tab */}
+          {activeTab === 'post-req' && (
+            <View>
+              <TextInput
+                style={[styles.bodyEditor, { backgroundColor: inputBg, color: colors.text, minHeight: 140 }]}
+                value={postRequestScript}
+                onChangeText={setPostRequestScript}
+                placeholder={`// ${t('postReqHint')}\n// console.log(response.status);\n// if (status >= 400) { /* handle error */ }`}
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                textAlignVertical="top"
+              />
+              <View style={{ marginTop: 8, gap: 4 }}>
+                <Text style={{ color: colors.textTertiary, fontSize: 11 }}>{t('postReqVars')}</Text>
+                <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: 'monospace' }}>
+                  response.body, response.headers, status, time, assertions
+                </Text>
+              </View>
             </View>
           )}
 

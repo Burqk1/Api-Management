@@ -101,6 +101,7 @@ export interface ApiEndpoint {
   assertions: TestAssertion[];
   auth?: AuthConfig;
   preRequestScript?: string;
+  postRequestScript?: string;
   isGraphQL?: boolean;
   graphqlQuery?: string;
   graphqlVariables?: string;
@@ -201,6 +202,52 @@ export interface ApiKey {
   key: string;
   service: string;
   createdAt: number;
+}
+
+export interface BenchmarkResult {
+  id: string;
+  endpointId: string;
+  endpointName: string;
+  url: string;
+  method: HttpMethod;
+  totalRequests: number;
+  concurrency: number;
+  results: {
+    statusCode: number;
+    responseTime: number;
+    success: boolean;
+    size: number;
+  }[];
+  stats: {
+    min: number;
+    max: number;
+    avg: number;
+    median: number;
+    p95: number;
+    p99: number;
+    successRate: number;
+    requestsPerSecond: number;
+    totalTime: number;
+    errorCount: number;
+  };
+  timestamp: number;
+}
+
+export interface EndpointVersion {
+  id: string;
+  endpointId: string;
+  snapshot: Omit<ApiEndpoint, 'id' | 'collectionId' | 'createdAt'>;
+  label?: string;
+  timestamp: number;
+}
+
+export interface SSLConfig {
+  enabled: boolean;
+  rejectUnauthorized: boolean;
+  clientCertificate?: string;
+  clientKey?: string;
+  caCertificate?: string;
+  passphrase?: string;
 }
 
 export const METHOD_COLORS: Record<HttpMethod, string> = {

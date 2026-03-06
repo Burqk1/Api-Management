@@ -44,6 +44,7 @@ export default function ToolsScreen() {
         { key: 'mockServer', icon: 'server-network', color: '#FF9500', route: '/mockserver' },
         { key: 'quickSend', icon: 'send-outline', color: '#30D158', route: '/quicksend' },
         { key: 'requestChaining', icon: 'link-variant', color: '#BC8CFF', route: '/chaining' },
+        { key: 'benchmark', icon: 'speedometer', color: '#FF6961', route: '/benchmark' },
       ],
     },
     {
@@ -62,6 +63,7 @@ export default function ToolsScreen() {
         { key: 'environments', icon: 'swap-horizontal', color: '#D29922', route: '/environments' },
         { key: 'cookieManager', icon: 'cookie-outline', color: '#FF9500', route: '/cookies' },
         { key: 'proxySettings', icon: 'shield-lock-outline', color: '#BC8CFF', route: '/proxy' },
+        { key: 'sslCertificates', icon: 'certificate-outline', color: '#58A6FF', route: '/sslconfig' },
         { key: 'importData', icon: 'import', color: '#58A6FF', route: '/import' },
       ],
     },

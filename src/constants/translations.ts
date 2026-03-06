@@ -372,10 +372,63 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Import
     importData: 'Import Data',
-    importDataDesc: 'Import from Postman, Insomnia, OpenAPI, cURL',
+    importDataDesc: 'Import from Postman, Insomnia, OpenAPI, cURL, HAR',
     selectFormat: 'Select Format',
     pasteJson: 'Paste JSON',
     pasteCurl: 'Paste cURL Command(s)',
+
+    // SSE
+    sseTesting: 'SSE Testing',
+    sseTestingDesc: 'Test Server-Sent Events streams',
+    sseConnected: 'Connected',
+    sseConnecting: 'Connecting...',
+    sseDisconnected: 'Disconnected',
+    sseError: 'Error',
+    sseEmptyHint: 'Connect to an SSE endpoint to start receiving events',
+    events: 'events',
+    filterEvents: 'Filter events...',
+    copyAll: 'Copy All',
+
+    // Cookie Manager
+    cookieManager: 'Cookie Manager',
+    cookieManagerDesc: 'Manage cookies across requests',
+    autoCaptureCookies: 'Auto Capture Cookies',
+    autoCaptureDesc: 'Automatically capture Set-Cookie headers from responses',
+    totalCookies: 'Cookies',
+    domains: 'Domains',
+    addCookie: 'Add Cookie',
+    cookieName: 'Cookie Name',
+    cookieValue: 'Cookie Value',
+    searchCookies: 'Search cookies...',
+    noCookies: 'No cookies stored',
+    clearAllCookies: 'Clear All Cookies',
+    clearAllCookiesConfirm: 'Remove all stored cookies?',
+
+    // API Documentation
+    apiDocs: 'API Docs',
+    apiDocsDesc: 'Generate API documentation from collections',
+    selectCollection: 'Select Collection',
+    docFormat: 'Output Format',
+    generateDocumentation: 'Generate Documentation',
+    output: 'Output',
+    copied: 'Copied',
+    share: 'Share',
+
+    // Proxy
+    proxySettings: 'Proxy Settings',
+    proxySettingsDesc: 'Route requests through a proxy server',
+    enableProxy: 'Enable Proxy',
+    proxyDesc: 'Route all API requests through a proxy for debugging',
+    proxyHost: 'PROXY HOST',
+    proxyPort: 'PROXY PORT',
+    proxyAuth: 'PROXY AUTHENTICATION (Optional)',
+    proxyInfo: 'Configure a proxy to inspect API traffic with tools like Charles, Fiddler, mitmproxy, or Proxyman.',
+    commonProxies: 'Quick Presets',
+
+    // Schema Validation
+    schemaValidation: 'Schema Validation',
+    schemaValid: 'Schema Valid',
+    schemaInvalid: 'Schema Invalid',
   },
 
   tr: {
@@ -749,9 +802,62 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // Import
     importData: 'Veri Iceri Aktar',
-    importDataDesc: 'Postman, Insomnia, OpenAPI, cURL\'den iceri aktar',
+    importDataDesc: 'Postman, Insomnia, OpenAPI, cURL, HAR\'dan iceri aktar',
     selectFormat: 'Format Sec',
     pasteJson: 'JSON Yapistir',
     pasteCurl: 'cURL Komutu Yapistir',
+
+    // SSE
+    sseTesting: 'SSE Testi',
+    sseTestingDesc: 'Server-Sent Events akislarini test et',
+    sseConnected: 'Baglandi',
+    sseConnecting: 'Baglaniyor...',
+    sseDisconnected: 'Bagli Degil',
+    sseError: 'Hata',
+    sseEmptyHint: 'Olaylari almaya baslamak icin bir SSE endpoint\'ine baglanin',
+    events: 'olay',
+    filterEvents: 'Olaylari filtrele...',
+    copyAll: 'Hepsini Kopyala',
+
+    // Cookie Manager
+    cookieManager: 'Cerez Yoneticisi',
+    cookieManagerDesc: 'Istekler arasi cerezleri yonet',
+    autoCaptureCookies: 'Otomatik Cerez Yakalama',
+    autoCaptureDesc: 'Yanitlardan Set-Cookie basliklarini otomatik yakala',
+    totalCookies: 'Cerezler',
+    domains: 'Alanlar',
+    addCookie: 'Cerez Ekle',
+    cookieName: 'Cerez Adi',
+    cookieValue: 'Cerez Degeri',
+    searchCookies: 'Cerez ara...',
+    noCookies: 'Kayitli cerez yok',
+    clearAllCookies: 'Tum Cerezleri Temizle',
+    clearAllCookiesConfirm: 'Tum kayitli cerezler silinsin mi?',
+
+    // API Documentation
+    apiDocs: 'API Dokumantasyonu',
+    apiDocsDesc: 'Koleksiyonlardan API dokumantasyonu olustur',
+    selectCollection: 'Koleksiyon Sec',
+    docFormat: 'Cikti Formati',
+    generateDocumentation: 'Dokumantasyon Olustur',
+    output: 'Cikti',
+    copied: 'Kopyalandi',
+    share: 'Paylas',
+
+    // Proxy
+    proxySettings: 'Proxy Ayarlari',
+    proxySettingsDesc: 'Istekleri proxy sunucu uzerinden yonlendir',
+    enableProxy: 'Proxy\'yi Etkinlestir',
+    proxyDesc: 'Hata ayiklama icin tum API isteklerini proxy uzerinden yonlendir',
+    proxyHost: 'PROXY SUNUCU',
+    proxyPort: 'PROXY PORT',
+    proxyAuth: 'PROXY KIMLIK DOGRULAMA (Opsiyonel)',
+    proxyInfo: 'Charles, Fiddler, mitmproxy veya Proxyman gibi araclarla API trafigini incelemek icin proxy yapilandirin.',
+    commonProxies: 'Hizli Ayarlar',
+
+    // Schema Validation
+    schemaValidation: 'Sema Dogrulama',
+    schemaValid: 'Sema Gecerli',
+    schemaInvalid: 'Sema Gecersiz',
   },
 };

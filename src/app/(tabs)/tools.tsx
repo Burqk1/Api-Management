@@ -39,6 +39,7 @@ export default function ToolsScreen() {
         { key: 'newCollection', icon: 'folder-plus-outline', color: '#58A6FF', route: '/collection/new' },
         { key: 'newEndpoint', icon: 'plus-network-outline', color: '#3FB950', route: '/endpoint/new' },
         { key: 'websocketTesting', icon: 'lan-connect', color: '#F778BA', route: '/websocket' },
+        { key: 'sseTesting', icon: 'broadcast', color: '#FFD60A', route: '/sse' },
         { key: 'templates', icon: 'file-document-outline', color: '#64D2FF', route: '/templates' },
         { key: 'mockServer', icon: 'server-network', color: '#FF9500', route: '/mockserver' },
         { key: 'quickSend', icon: 'send-outline', color: '#30D158', route: '/quicksend' },
@@ -52,12 +53,15 @@ export default function ToolsScreen() {
         { key: 'compareRequests', icon: 'compare', color: '#64D2FF', route: '/compare' },
         { key: 'globalSearch', icon: 'magnify', color: '#8B949E', route: '/search' },
         { key: 'aiAnalysis', icon: 'robot-outline', color: '#FF9500', route: '/aianalysis' },
+        { key: 'apiDocs', icon: 'file-document-multiple-outline', color: '#3FB950', route: '/apidocs' },
       ],
     },
     {
       titleKey: 'configTools',
       items: [
         { key: 'environments', icon: 'swap-horizontal', color: '#D29922', route: '/environments' },
+        { key: 'cookieManager', icon: 'cookie-outline', color: '#FF9500', route: '/cookies' },
+        { key: 'proxySettings', icon: 'shield-lock-outline', color: '#BC8CFF', route: '/proxy' },
         { key: 'importData', icon: 'import', color: '#58A6FF', route: '/import' },
       ],
     },

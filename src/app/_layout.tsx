@@ -12,6 +12,8 @@ import { useOfflineStore } from '../stores/offlineStore';
 import { useAuthStore } from '../stores/authStore';
 import { useSyncStore } from '../stores/syncStore';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
+import { useCookieStore } from '../stores/cookieStore';
+import { useProxyStore } from '../stores/proxyStore';
 
 export default function RootLayout() {
   const initialize = useThemeStore((s) => s.initialize);
@@ -24,6 +26,8 @@ export default function RootLayout() {
   const initAuth = useAuthStore((s) => s.initialize);
   const initSync = useSyncStore((s) => s.initialize);
   const initSub = useSubscriptionStore((s) => s.initialize);
+  const initCookie = useCookieStore((s) => s.initialize);
+  const initProxy = useProxyStore((s) => s.initialize);
   const router = useRouter();
   const t = useLanguageStore((s) => s.t);
   const colors = useThemeStore((s) => s.colors);
@@ -40,6 +44,8 @@ export default function RootLayout() {
     initAuth();
     initSync();
     initSub();
+    initCookie();
+    initProxy();
 
     // Show onboarding on first launch
     AsyncStorage.getItem('onboarding_done').then((val) => {
@@ -145,6 +151,22 @@ export default function RootLayout() {
         <Stack.Screen
           name="onboarding"
           options={{ headerShown: false, presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="sse"
+          options={{ headerBackTitle: t('cancel'), title: t('sseTesting'), presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="cookies"
+          options={{ headerBackTitle: t('cancel'), title: t('cookieManager'), presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="apidocs"
+          options={{ headerBackTitle: t('cancel'), title: t('apiDocs'), presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="proxy"
+          options={{ headerBackTitle: t('cancel'), title: t('proxySettings'), presentation: 'modal' }}
         />
       </Stack>
     </>

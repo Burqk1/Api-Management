@@ -15,8 +15,9 @@ import { useTheme } from '../hooks/useTheme';
 import { useLanguageStore } from '../stores/languageStore';
 import { useApiStore } from '../stores/apiStore';
 import { generateId, HttpMethod } from '../types/api';
+import { parseHAR } from '../utils/harParser';
 
-type ImportFormat = 'postman' | 'insomnia' | 'openapi' | 'curl';
+type ImportFormat = 'postman' | 'insomnia' | 'openapi' | 'curl' | 'har';
 
 export default function ImportScreen() {
   const { colors, isDark } = useTheme();
@@ -37,6 +38,7 @@ export default function ImportScreen() {
     { key: 'insomnia', label: 'Insomnia', icon: 'alpha-i-box', color: '#7B6BCC' },
     { key: 'openapi', label: 'OpenAPI', icon: 'api', color: '#6BA539' },
     { key: 'curl', label: 'cURL', icon: 'console', color: '#8B949E' },
+    { key: 'har', label: 'HAR', icon: 'web', color: '#58A6FF' },
   ];
 
   const parsePostman = (data: any) => {
@@ -214,6 +216,27 @@ export default function ImportScreen() {
       let count = 0;
       if (format === 'curl') {
         count = parseCurl(jsonText);
+      } else if (format === 'har') {
+        const entries = parseHAR(jsonText);
+        const col = addCollection({
+          name: 'HAR Import',
+          description: `Imported ${entries.length} requests from HAR file`,
+          color: '#58A6FF',
+          icon: 'web',
+          baseUrl: '',
+        });
+        for (const entry of entries) {
+          addEndpoint({
+            name: entry.name,
+            url: entry.url,
+            method: entry.method,
+            headers: entry.headers,
+            body: entry.body,
+            collectionId: col.id,
+            assertions: [],
+          });
+        }
+        count = entries.length;
       } else {
         const data = JSON.parse(jsonText);
         if (format === 'postman') count = parsePostman(data);

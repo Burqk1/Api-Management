@@ -1,12 +1,69 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 
-export type AuthType = 'none' | 'bearer' | 'basic' | 'apikey';
+export type AuthType = 'none' | 'bearer' | 'basic' | 'apikey' | 'oauth2';
+
+export type OAuth2GrantType = 'authorization_code' | 'client_credentials' | 'password' | 'implicit';
+
+export interface OAuth2Config {
+  grantType: OAuth2GrantType;
+  authUrl?: string;
+  tokenUrl?: string;
+  clientId: string;
+  clientSecret?: string;
+  scope?: string;
+  redirectUri?: string;
+  username?: string;
+  password?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiry?: number;
+}
 
 export interface AuthConfig {
   type: AuthType;
   bearer?: { token: string };
   basic?: { username: string; password: string };
   apikey?: { key: string; value: string; addTo: 'header' | 'query' };
+  oauth2?: OAuth2Config;
+}
+
+export type BodyType = 'none' | 'json' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
+
+export interface FormDataField {
+  key: string;
+  value: string;
+  type: 'text' | 'file';
+  enabled: boolean;
+}
+
+export interface Cookie {
+  name: string;
+  value: string;
+  domain: string;
+  path: string;
+  expires?: number;
+  httpOnly?: boolean;
+  secure?: boolean;
+}
+
+export interface ProxyConfig {
+  enabled: boolean;
+  host: string;
+  port: number;
+  auth?: { username: string; password: string };
+}
+
+export interface SchemaValidation {
+  enabled: boolean;
+  schema: string;
+  lastResult?: { valid: boolean; errors: string[] };
+}
+
+export interface SSEMessage {
+  id?: string;
+  event?: string;
+  data: string;
+  timestamp: number;
 }
 
 export interface WebSocketMessage {
@@ -38,6 +95,8 @@ export interface ApiEndpoint {
   method: HttpMethod;
   headers: ApiHeader[];
   body: string;
+  bodyType?: BodyType;
+  formData?: FormDataField[];
   collectionId: string;
   assertions: TestAssertion[];
   auth?: AuthConfig;
@@ -46,6 +105,7 @@ export interface ApiEndpoint {
   graphqlQuery?: string;
   graphqlVariables?: string;
   isFavorite?: boolean;
+  schemaValidation?: SchemaValidation;
   createdAt: number;
   updatedAt: number;
 }
@@ -68,8 +128,8 @@ export interface ApiCallLog {
   url: string;
   method: HttpMethod;
   statusCode: number;
-  responseTime: number; // ms
-  responseSize: number; // bytes
+  responseTime: number;
+  responseSize: number;
   success: boolean;
   timestamp: number;
   errorMessage?: string;
@@ -77,6 +137,7 @@ export interface ApiCallLog {
   requestBody?: string;
   responseHeaders?: Record<string, string>;
   responseBody?: string;
+  cookies?: Cookie[];
 }
 
 export interface MonitorCheck {
@@ -85,7 +146,7 @@ export interface MonitorCheck {
   endpointName: string;
   url: string;
   method: HttpMethod;
-  interval: number; // minutes
+  interval: number;
   enabled: boolean;
   lastCheck?: number;
   lastStatus?: number;
@@ -104,7 +165,7 @@ export interface MonitorPing {
 
 export interface TestAssertion {
   id: string;
-  type: 'status' | 'body_contains' | 'header_exists' | 'response_time' | 'json_path';
+  type: 'status' | 'body_contains' | 'header_exists' | 'response_time' | 'json_path' | 'schema';
   expected: string;
   passed?: boolean;
 }

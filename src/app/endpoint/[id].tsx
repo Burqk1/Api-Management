@@ -18,11 +18,13 @@ import { useTheme } from '../../hooks/useTheme';
 import { useApiStore } from '../../stores/apiStore';
 import { useMonitorStore } from '../../stores/monitorStore';
 import { useEnvironmentStore } from '../../stores/environmentStore';
-import { HttpMethod, METHOD_COLORS, ApiHeader, TestAssertion, AuthConfig, AuthType, getStatusColor, generateId } from '../../types/api';
+import { HttpMethod, METHOD_COLORS, ApiHeader, TestAssertion, AuthConfig, AuthType, BodyType, FormDataField, OAuth2Config, OAuth2GrantType, getStatusColor, generateId } from '../../types/api';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useCookieStore } from '../../stores/cookieStore';
 import * as Clipboard from 'expo-clipboard';
 import { endpointToCurl, parseCurl } from '../../utils/curl';
 import { generateCode, CodeLang } from '../../utils/codeGen';
+import { tryValidateSchema } from '../../utils/schemaValidator';
 import JsonHighlight from '../../components/JsonHighlight';
 import { Share } from 'react-native';
 
@@ -33,6 +35,14 @@ const ASSERTION_TYPES = [
   { type: 'response_time' as const, label: 'Max Response Time (ms)', placeholder: '500' },
   { type: 'header_exists' as const, label: 'Header Exists', placeholder: 'content-type' },
   { type: 'json_path' as const, label: 'JSON Path Exists', placeholder: 'data.id' },
+  { type: 'schema' as const, label: 'JSON Schema', placeholder: '{"type":"object","required":["id"]}' },
+];
+
+const OAUTH2_GRANT_TYPES: { value: OAuth2GrantType; label: string }[] = [
+  { value: 'authorization_code', label: 'Authorization Code' },
+  { value: 'client_credentials', label: 'Client Credentials' },
+  { value: 'password', label: 'Password' },
+  { value: 'implicit', label: 'Implicit' },
 ];
 
 export default function EndpointDetailScreen() {
@@ -52,12 +62,16 @@ export default function EndpointDetailScreen() {
   const resolveVariables = useEnvironmentStore((s) => s.resolveVariables);
   const setLastResponse = useEnvironmentStore((s) => s.setLastResponse);
   const activeEnv = useEnvironmentStore((s) => s.getActiveEnv);
+  const parseCookiesFromHeaders = useCookieStore((s) => s.parseCookiesFromHeaders);
+  const getCookieHeader = useCookieStore((s) => s.getCookieHeader);
 
   const endpoint = endpoints.find((e) => e.id === id);
 
   const [url, setUrl] = useState(endpoint?.url || '');
   const [method, setMethod] = useState<HttpMethod>(endpoint?.method || 'GET');
   const [body, setBody] = useState(endpoint?.body || '');
+  const [bodyType, setBodyType] = useState<BodyType>(endpoint?.bodyType || 'json');
+  const [formData, setFormData] = useState<FormDataField[]>(endpoint?.formData || []);
   const [headers, setHeaders] = useState<ApiHeader[]>(endpoint?.headers || []);
   const [assertions, setAssertions] = useState<TestAssertion[]>(endpoint?.assertions || []);
   const [auth, setAuth] = useState<AuthConfig>(endpoint?.auth || { type: 'none' });
@@ -114,6 +128,8 @@ export default function EndpointDetailScreen() {
 
   const removeAssertion = (aId: string) => setAssertions(assertions.filter((a) => a.id !== aId));
 
+  const getOAuth2 = (): OAuth2Config => auth.oauth2 || { grantType: 'authorization_code', clientId: '' };
+
   const sendRequest = useCallback(async () => {
     if (!url.trim()) return;
     setLoading(true);
@@ -124,7 +140,7 @@ export default function EndpointDetailScreen() {
 
     // Save changes
     if (endpoint) {
-      updateEndpoint(endpoint.id, { url, method, body, headers, assertions, auth, preRequestScript, isGraphQL, graphqlQuery, graphqlVariables });
+      updateEndpoint(endpoint.id, { url, method, body, bodyType, formData, headers, assertions, auth, preRequestScript, isGraphQL, graphqlQuery, graphqlVariables });
     }
 
     // Run pre-request script
@@ -158,9 +174,25 @@ export default function EndpointDetailScreen() {
       headerObj[resolveVariables(h.key)] = resolveVariables(h.value);
     });
 
+    // Apply cookies
+    const cookieHeader = getCookieHeader(resolvedUrl);
+    if (cookieHeader) headerObj['Cookie'] = cookieHeader;
+
     // Apply auth
     if (auth.type === 'bearer' && auth.bearer?.token) {
       headerObj['Authorization'] = `Bearer ${resolveVariables(auth.bearer.token)}`;
+    } else if (auth.type === 'oauth2' && auth.oauth2) {
+      let token: string | undefined = auth.oauth2.accessToken;
+      // If no token or expired, try to fetch one
+      if (!token || (auth.oauth2.tokenExpiry && auth.oauth2.tokenExpiry < Date.now())) {
+        try {
+          token = (await fetchOAuth2Token(auth.oauth2, resolveVariables)) ?? undefined;
+          if (token) {
+            setAuth({ ...auth, oauth2: { ...auth.oauth2, accessToken: token, tokenExpiry: Date.now() + 3600000 } });
+          }
+        } catch {}
+      }
+      if (token) headerObj['Authorization'] = `Bearer ${token}`;
     } else if (auth.type === 'basic' && auth.basic) {
       const encoded = btoa(`${resolveVariables(auth.basic.username)}:${resolveVariables(auth.basic.password)}`);
       headerObj['Authorization'] = `Basic ${encoded}`;
@@ -179,9 +211,25 @@ export default function EndpointDetailScreen() {
       if (isGraphQL) {
         fetchOpts.body = resolvedBody;
         if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
-      } else if (['POST', 'PUT', 'PATCH'].includes(method) && resolvedBody.trim()) {
-        fetchOpts.body = resolvedBody;
-        if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
+      } else if (['POST', 'PUT', 'PATCH'].includes(method)) {
+        if (bodyType === 'form-data' && formData.length > 0) {
+          const fd = new FormData();
+          formData.filter((f) => f.enabled).forEach((f) => {
+            fd.append(resolveVariables(f.key), resolveVariables(f.value));
+          });
+          fetchOpts.body = fd;
+          delete headerObj['Content-Type']; // Let browser set multipart boundary
+        } else if (bodyType === 'x-www-form-urlencoded' && formData.length > 0) {
+          const params = formData
+            .filter((f) => f.enabled)
+            .map((f) => `${encodeURIComponent(resolveVariables(f.key))}=${encodeURIComponent(resolveVariables(f.value))}`)
+            .join('&');
+          fetchOpts.body = params;
+          headerObj['Content-Type'] = 'application/x-www-form-urlencoded';
+        } else if (resolvedBody.trim()) {
+          fetchOpts.body = resolvedBody;
+          if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
+        }
       }
 
       const res = await fetch(resolvedUrl, fetchOpts);
@@ -190,6 +238,9 @@ export default function EndpointDetailScreen() {
 
       const resHeaders: Record<string, string> = {};
       res.headers.forEach((value: string, key: string) => { resHeaders[key] = value; });
+
+      // Capture cookies from response
+      parseCookiesFromHeaders(resolvedUrl, resHeaders);
 
       setResponse({
         status: res.status,
@@ -216,6 +267,12 @@ export default function EndpointDetailScreen() {
             try {
               const json = JSON.parse(resBody);
               passed = a.expected.split('.').reduce((o: any, k: string) => o?.[k], json) !== undefined;
+            } catch { passed = false; }
+            break;
+          case 'schema':
+            try {
+              const result = tryValidateSchema(resBody, a.expected);
+              passed = result.valid;
             } catch { passed = false; }
             break;
         }
@@ -498,15 +555,87 @@ export default function EndpointDetailScreen() {
 
           {/* Body Tab */}
           {activeTab === 'body' && (
-            <TextInput
-              style={[styles.bodyEditor, { backgroundColor: inputBg, color: colors.text }]}
-              value={body}
-              onChangeText={setBody}
-              placeholder='{"key": "{{VALUE}}"}'
-              placeholderTextColor={colors.textTertiary}
-              multiline
-              textAlignVertical="top"
-            />
+            <View style={[styles.tabContent, { backgroundColor: inputBg }]}>
+              {/* Body Type Selector */}
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {(['none', 'json', 'form-data', 'x-www-form-urlencoded', 'raw'] as BodyType[]).map((bt) => (
+                    <TouchableOpacity
+                      key={bt}
+                      onPress={() => setBodyType(bt)}
+                      style={[styles.addAssertionBtn, { backgroundColor: bodyType === bt ? colors.primary + '25' : colors.background }]}
+                    >
+                      <Text style={[styles.addAssertionText, { color: bodyType === bt ? colors.primary : colors.textSecondary }]}>
+                        {bt === 'none' ? 'None' : bt === 'json' ? 'JSON' : bt === 'form-data' ? 'Form Data' : bt === 'x-www-form-urlencoded' ? 'URL Encoded' : 'Raw'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+
+              {/* JSON / Raw body */}
+              {(bodyType === 'json' || bodyType === 'raw') && (
+                <TextInput
+                  style={[styles.bodyEditor, { backgroundColor: colors.background, color: colors.text, marginTop: 0 }]}
+                  value={body}
+                  onChangeText={setBody}
+                  placeholder={bodyType === 'json' ? '{"key": "{{VALUE}}"}' : 'Raw body content...'}
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  textAlignVertical="top"
+                />
+              )}
+
+              {/* Form Data */}
+              {(bodyType === 'form-data' || bodyType === 'x-www-form-urlencoded') && (
+                <View style={{ gap: 6 }}>
+                  {formData.map((field, i) => (
+                    <View key={i} style={[styles.headerRow, { borderBottomColor: colors.divider }]}>
+                      <TouchableOpacity onPress={() => setFormData(formData.map((f, j) => j === i ? { ...f, enabled: !f.enabled } : f))}>
+                        <MaterialCommunityIcons name={field.enabled ? 'checkbox-marked' : 'checkbox-blank-outline'} size={18} color={field.enabled ? colors.primary : colors.textTertiary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.headerKey, { color: colors.primary, opacity: field.enabled ? 1 : 0.4 }]}>{field.key}</Text>
+                      <Text style={[styles.headerVal, { color: colors.text, opacity: field.enabled ? 1 : 0.4 }]} numberOfLines={1}>{field.value}</Text>
+                      {bodyType === 'form-data' && (
+                        <View style={[styles.addAssertionBtn, { backgroundColor: field.type === 'file' ? '#FF950020' : colors.background, paddingHorizontal: 6, paddingVertical: 2 }]}>
+                          <Text style={{ fontSize: 10, color: field.type === 'file' ? '#FF9500' : colors.textTertiary }}>{field.type}</Text>
+                        </View>
+                      )}
+                      <TouchableOpacity onPress={() => setFormData(formData.filter((_, j) => j !== i))}>
+                        <MaterialCommunityIcons name="close-circle" size={16} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  <View style={styles.addHeaderRow}>
+                    <TextInput
+                      style={[styles.headerInput, { backgroundColor: colors.background, color: colors.text }]}
+                      value={newHeaderKey}
+                      onChangeText={setNewHeaderKey}
+                      placeholder="Key"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                    <TextInput
+                      style={[styles.headerInput, { backgroundColor: colors.background, color: colors.text, flex: 2 }]}
+                      value={newHeaderValue}
+                      onChangeText={setNewHeaderValue}
+                      placeholder="Value"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                    <TouchableOpacity
+                      onPress={() => {
+                        if (!newHeaderKey.trim()) return;
+                        setFormData([...formData, { key: newHeaderKey.trim(), value: newHeaderValue.trim(), type: 'text', enabled: true }]);
+                        setNewHeaderKey('');
+                        setNewHeaderValue('');
+                      }}
+                      style={[styles.addHeaderBtn, { backgroundColor: colors.primary + '18' }]}
+                    >
+                      <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </View>
           )}
 
           {/* Auth Tab */}
@@ -514,7 +643,7 @@ export default function EndpointDetailScreen() {
             <View style={[styles.tabContent, { backgroundColor: inputBg }]}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {(['none', 'bearer', 'basic', 'apikey'] as AuthType[]).map((type) => (
+                  {(['none', 'bearer', 'basic', 'apikey', 'oauth2'] as AuthType[]).map((type) => (
                     <TouchableOpacity
                       key={type}
                       onPress={() => setAuth({ ...auth, type })}
@@ -525,7 +654,7 @@ export default function EndpointDetailScreen() {
                       <Text style={[styles.addAssertionText, {
                         color: auth.type === type ? colors.primary : colors.textSecondary,
                       }]}>
-                        {type === 'none' ? t('none') : type === 'bearer' ? 'Bearer Token' : type === 'basic' ? 'Basic Auth' : 'API Key'}
+                        {type === 'none' ? t('none') : type === 'bearer' ? 'Bearer' : type === 'basic' ? 'Basic' : type === 'apikey' ? 'API Key' : 'OAuth 2.0'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -595,6 +724,120 @@ export default function EndpointDetailScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                </View>
+              )}
+
+              {auth.type === 'oauth2' && (
+                <View style={{ gap: 8, marginTop: 4 }}>
+                  {/* Grant Type */}
+                  <Text style={[styles.assertionLabel, { color: colors.textSecondary }]}>Grant Type</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 4 }}>
+                      {OAUTH2_GRANT_TYPES.map((gt) => (
+                        <TouchableOpacity
+                          key={gt.value}
+                          onPress={() => setAuth({ ...auth, oauth2: { ...getOAuth2(), grantType: gt.value } })}
+                          style={[styles.addAssertionBtn, { backgroundColor: (auth.oauth2?.grantType || 'authorization_code') === gt.value ? colors.primary + '25' : colors.background }]}
+                        >
+                          <Text style={[styles.addAssertionText, { color: (auth.oauth2?.grantType || 'authorization_code') === gt.value ? colors.primary : colors.textSecondary, fontSize: 11 }]}>{gt.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+
+                  {/* Common OAuth2 fields */}
+                  {(auth.oauth2?.grantType === 'authorization_code' || auth.oauth2?.grantType === 'implicit') && (
+                    <TextInput
+                      style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                      value={auth.oauth2?.authUrl || ''}
+                      onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), authUrl: v } })}
+                      placeholder="Authorization URL"
+                      placeholderTextColor={colors.textTertiary}
+                      autoCapitalize="none"
+                    />
+                  )}
+                  {auth.oauth2?.grantType !== 'implicit' && (
+                    <TextInput
+                      style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                      value={auth.oauth2?.tokenUrl || ''}
+                      onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), tokenUrl: v } })}
+                      placeholder="Token URL"
+                      placeholderTextColor={colors.textTertiary}
+                      autoCapitalize="none"
+                    />
+                  )}
+                  <TextInput
+                    style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                    value={auth.oauth2?.clientId || ''}
+                    onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), clientId: v } })}
+                    placeholder="Client ID"
+                    placeholderTextColor={colors.textTertiary}
+                    autoCapitalize="none"
+                  />
+                  {auth.oauth2?.grantType !== 'implicit' && (
+                    <TextInput
+                      style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                      value={auth.oauth2?.clientSecret || ''}
+                      onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), clientSecret: v } })}
+                      placeholder="Client Secret"
+                      placeholderTextColor={colors.textTertiary}
+                      autoCapitalize="none"
+                    />
+                  )}
+                  <TextInput
+                    style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                    value={auth.oauth2?.scope || ''}
+                    onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), scope: v } })}
+                    placeholder="Scope (e.g. read write)"
+                    placeholderTextColor={colors.textTertiary}
+                    autoCapitalize="none"
+                  />
+                  {auth.oauth2?.grantType === 'password' && (
+                    <>
+                      <TextInput
+                        style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                        value={auth.oauth2?.username || ''}
+                        onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), username: v } })}
+                        placeholder={t('username')}
+                        placeholderTextColor={colors.textTertiary}
+                        autoCapitalize="none"
+                      />
+                      <TextInput
+                        style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                        value={auth.oauth2?.password || ''}
+                        onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), password: v } })}
+                        placeholder={t('password')}
+                        placeholderTextColor={colors.textTertiary}
+                        secureTextEntry
+                      />
+                    </>
+                  )}
+
+                  {/* Current Token */}
+                  {auth.oauth2?.accessToken && (
+                    <View style={{ backgroundColor: '#3FB95012', borderRadius: 8, padding: 10 }}>
+                      <Text style={{ color: '#3FB950', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>Active Token</Text>
+                      <Text style={{ color: colors.text, fontSize: 11, fontFamily: 'monospace' }} numberOfLines={2}>{auth.oauth2.accessToken}</Text>
+                    </View>
+                  )}
+
+                  {/* Fetch Token Button */}
+                  <TouchableOpacity
+                    style={[styles.addAssertionBtn, { backgroundColor: colors.primary + '20', paddingVertical: 10, alignItems: 'center' }]}
+                    onPress={async () => {
+                      try {
+                        const token = await fetchOAuth2Token(getOAuth2(), resolveVariables);
+                        if (token) {
+                          setAuth({ ...auth, oauth2: { ...getOAuth2(), accessToken: token, tokenExpiry: Date.now() + 3600000 } });
+                          Alert.alert('Success', 'Token fetched successfully');
+                        }
+                      } catch (err: any) {
+                        Alert.alert('Error', err.message);
+                      }
+                    }}
+                  >
+                    <Text style={{ color: colors.primary, fontWeight: '700' }}>Fetch Token</Text>
+                  </TouchableOpacity>
                 </View>
               )}
             </View>
@@ -932,6 +1175,53 @@ export default function EndpointDetailScreen() {
   );
 }
 
+async function fetchOAuth2Token(
+  config: OAuth2Config,
+  resolve: (s: string) => string
+): Promise<string | null> {
+  if (!config.tokenUrl && config.grantType !== 'implicit') return null;
+
+  const params = new URLSearchParams();
+
+  switch (config.grantType) {
+    case 'client_credentials':
+      params.set('grant_type', 'client_credentials');
+      params.set('client_id', resolve(config.clientId));
+      if (config.clientSecret) params.set('client_secret', resolve(config.clientSecret));
+      if (config.scope) params.set('scope', resolve(config.scope));
+      break;
+    case 'password':
+      params.set('grant_type', 'password');
+      params.set('client_id', resolve(config.clientId));
+      if (config.clientSecret) params.set('client_secret', resolve(config.clientSecret));
+      if (config.username) params.set('username', resolve(config.username));
+      if (config.password) params.set('password', resolve(config.password));
+      if (config.scope) params.set('scope', resolve(config.scope));
+      break;
+    case 'authorization_code':
+      if (config.refreshToken) {
+        params.set('grant_type', 'refresh_token');
+        params.set('refresh_token', resolve(config.refreshToken));
+      } else {
+        return null; // Needs browser redirect flow
+      }
+      params.set('client_id', resolve(config.clientId));
+      if (config.clientSecret) params.set('client_secret', resolve(config.clientSecret));
+      break;
+    default:
+      return null;
+  }
+
+  const res = await fetch(resolve(config.tokenUrl!), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+
+  const data = await res.json();
+  return data.access_token || null;
+}
+
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingTop: 12, paddingBottom: 20 },
@@ -972,6 +1262,7 @@ const styles = StyleSheet.create({
   assertionInput: { fontSize: 13, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 5 },
   addAssertionBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6 },
   addAssertionText: { fontSize: 12, fontWeight: '600' },
+  assertionLabel: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, marginBottom: 2 },
 
   assertionSummary: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, marginTop: 10 },
   assertionSummaryText: { fontSize: 14, fontWeight: '600' },

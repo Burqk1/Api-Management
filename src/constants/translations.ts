@@ -186,6 +186,16 @@ export const translations: Record<Language, Record<string, string>> = {
     // GraphQL
     graphqlQuery: 'Query',
     graphqlVariables: 'Variables',
+    graphqlExplorer: 'GraphQL Explorer',
+    introspect: 'Introspect',
+    schemaTypes: 'Schema Types',
+    queryBuilder: 'Query Builder',
+    executeQuery: 'Execute Query',
+    graphqlHeaders: 'Headers',
+    graphqlResponse: 'Response',
+    noSchema: 'No schema loaded. Enter a GraphQL endpoint and run introspection.',
+    introspecting: 'Introspecting...',
+    schemaLoaded: 'Schema loaded successfully',
 
     // Export/Import
     exported: 'Exported',
@@ -497,6 +507,53 @@ export const translations: Record<Language, Record<string, string>> = {
     postReq: 'Post-Req',
     postReqHint: 'JavaScript runs after each response',
     postReqVars: 'Available variables:',
+
+    // Data-Driven Testing
+    dataDrivenTesting: 'Data-Driven Testing',
+    loadData: 'Load Data',
+    loadTestData: 'Load Test Data',
+    load: 'Load',
+    iterations: 'iterations',
+    dataFields: 'Fields',
+    dataDrivenHint: 'Load CSV or JSON data to run tests with multiple data sets. Use {{data.fieldName}} in URLs, headers, and body.',
+    dataDrivenUsage: 'Use {{data.fieldName}} in your endpoint URLs, headers, and body to reference data columns. Each row/item runs all endpoints once.',
+
+    // Script Editor
+    scriptEditor: 'Script Editor',
+    snippets: 'Snippets',
+    insertSnippet: 'Insert Snippet',
+    console: 'Console',
+    clearConsole: 'Clear Console',
+    saveScript: 'Save Script',
+    availableVars: 'Available Variables',
+    preRequestScript: 'Pre-Request Script',
+    postRequestScript: 'Post-Request Script',
+    scriptSaved: 'Script saved successfully',
+
+    // Response Viewer
+    responseViewer: 'Response Viewer',
+    responseViewerDesc: 'Visualize API responses with tree view and formatting',
+    bodyTab: 'Body',
+    headersTab: 'Headers',
+    previewTab: 'Preview',
+    searchInResponse: 'Search in response...',
+    formattedView: 'Formatted',
+    rawView: 'Raw',
+    copyResponse: 'Copy',
+    noResponseData: 'No response data',
+    responseStats: 'Response Stats',
+    treeView: 'Tree View',
+
+    // Environment Inheritance
+    globalVariables: 'Global Variables',
+    globalVariablesDesc: 'Variables available across all environments',
+    globalVariablesHint: 'Global variables are overridden by environment-specific variables with the same key.',
+
+    // GraphQL Explorer (tool desc)
+    graphqlExplorerDesc: 'Explore GraphQL schemas and run queries',
+
+    // Script Editor (tool desc)
+    scriptEditorDesc: 'Edit pre/post request scripts with snippets',
   },
 
   tr: {
@@ -684,6 +741,16 @@ export const translations: Record<Language, Record<string, string>> = {
     // GraphQL
     graphqlQuery: 'Sorgu',
     graphqlVariables: 'Degiskenler',
+    graphqlExplorer: 'GraphQL Gezgini',
+    introspect: 'Sema Kesfet',
+    schemaTypes: 'Sema Turleri',
+    queryBuilder: 'Sorgu Olusturucu',
+    executeQuery: 'Sorguyu Calistir',
+    graphqlHeaders: 'Basliklar',
+    graphqlResponse: 'Yanit',
+    noSchema: 'Sema yuklenmedi. Bir GraphQL endpoint girin ve kesfetme calistirin.',
+    introspecting: 'Kesfediliyor...',
+    schemaLoaded: 'Sema basariyla yuklendi',
 
     // Export/Import
     exported: 'Disari Aktarildi',
@@ -995,5 +1062,52 @@ export const translations: Record<Language, Record<string, string>> = {
     postReq: 'Son-Istek',
     postReqHint: 'Her yanittan sonra JavaScript calistirilir',
     postReqVars: 'Kullanilabilir degiskenler:',
+
+    // Data-Driven Testing
+    dataDrivenTesting: 'Veri Tabanli Test',
+    loadData: 'Veri Yukle',
+    loadTestData: 'Test Verisi Yukle',
+    load: 'Yukle',
+    iterations: 'iterasyon',
+    dataFields: 'Alanlar',
+    dataDrivenHint: 'Birden fazla veri seti ile test calistirmak icin CSV veya JSON veri yukleyin. URL, baslik ve govdede {{data.alanAdi}} kullanin.',
+    dataDrivenUsage: 'Endpoint URL, baslik ve govdelerinde veri sutunlarina referans vermek icin {{data.alanAdi}} kullanin. Her satir/oge tum endpointleri bir kez calistirir.',
+
+    // Script Editor
+    scriptEditor: 'Script Duzenleyici',
+    snippets: 'Kod Parcalari',
+    insertSnippet: 'Kod Parcasi Ekle',
+    console: 'Konsol',
+    clearConsole: 'Konsolu Temizle',
+    saveScript: 'Scripti Kaydet',
+    availableVars: 'Kullanilabilir Degiskenler',
+    preRequestScript: 'On-Istek Scripti',
+    postRequestScript: 'Son-Istek Scripti',
+    scriptSaved: 'Script basariyla kaydedildi',
+
+    // Response Viewer
+    responseViewer: 'Yanit Goruntuleyici',
+    responseViewerDesc: 'API yanitlarini agac gorunumu ve bicimlendirme ile goruntule',
+    bodyTab: 'Govde',
+    headersTab: 'Basliklar',
+    previewTab: 'Onizleme',
+    searchInResponse: 'Yanit icinde ara...',
+    formattedView: 'Bicimli',
+    rawView: 'Ham',
+    copyResponse: 'Kopyala',
+    noResponseData: 'Yanit verisi yok',
+    responseStats: 'Yanit Istatistikleri',
+    treeView: 'Agac Gorunumu',
+
+    // Environment Inheritance
+    globalVariables: 'Global Degiskenler',
+    globalVariablesDesc: 'Tum ortamlarda gecerli degiskenler',
+    globalVariablesHint: 'Global degiskenler, ayni anahtara sahip ortam degiskenleri tarafindan gecersiz kilinir.',
+
+    // GraphQL Explorer (tool desc)
+    graphqlExplorerDesc: 'GraphQL semalarini kesfet ve sorgulari calistir',
+
+    // Script Editor (tool desc)
+    scriptEditorDesc: 'On/son istek scriptlerini kod parcalariyla duzenle',
   },
 };

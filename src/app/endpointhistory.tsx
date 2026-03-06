@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -25,7 +25,11 @@ export default function EndpointHistoryScreen() {
 
   const endpoints = useApiStore((s) => s.endpoints);
   const updateEndpoint = useApiStore((s) => s.updateEndpoint);
-  const versions = useHistoryStore((s) => s.getVersions(endpointId || ''));
+  const allVersions = useHistoryStore((s) => s.versions);
+  const versions = useMemo(
+    () => allVersions.filter((v) => v.endpointId === (endpointId || '')).sort((a, b) => b.timestamp - a.timestamp),
+    [allVersions, endpointId]
+  );
   const deleteVersion = useHistoryStore((s) => s.deleteVersion);
   const clearEndpointHistory = useHistoryStore((s) => s.clearEndpointHistory);
 

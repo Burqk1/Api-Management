@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -40,6 +42,7 @@ export default function AIAnalysisScreen() {
   const [result, setResult] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
 
+  const scrollRef = useRef<ScrollView>(null);
   const cardBg = isDark ? colors.surface : colors.card;
 
   const getApiKey = (): string | null => {
@@ -117,7 +120,8 @@ export default function AIAnalysisScreen() {
     <>
       <Stack.Screen options={{ title: t('aiAnalysis') }} />
       <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
-        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        <ScrollView ref={scrollRef} contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" keyboardDismissMode="interactive">
           {/* Context Card */}
           {log && (
             <View style={[styles.card, { backgroundColor: cardBg }]}>
@@ -163,6 +167,7 @@ export default function AIAnalysisScreen() {
               multiline
               numberOfLines={3}
               textAlignVertical="top"
+              onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300)}
             />
             <TouchableOpacity
               style={[styles.sendBtn, { backgroundColor: colors.primary, opacity: customPrompt.trim() && !loading ? 1 : 0.4 }]}
@@ -200,6 +205,7 @@ export default function AIAnalysisScreen() {
 
           <View style={{ height: 40 }} />
         </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </>
   );

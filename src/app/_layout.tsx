@@ -183,6 +183,18 @@ export default function RootLayout() {
           name="endpointhistory"
           options={{ headerBackTitle: t('cancel'), title: t('endpointHistory') }}
         />
+        <Stack.Screen
+          name="graphqlexplorer"
+          options={{ headerBackTitle: t('cancel'), title: t('graphqlExplorer'), presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="responseviewer"
+          options={{ headerBackTitle: t('cancel'), title: t('responseViewer') }}
+        />
+        <Stack.Screen
+          name="scripteditor"
+          options={{ headerBackTitle: t('cancel'), title: t('scriptEditor'), presentation: 'modal' }}
+        />
       </Stack>
     </>
   );

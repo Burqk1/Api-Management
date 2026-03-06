@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  TextInput,
+  Modal,
 } from 'react-native';
 import { useLocalSearchParams, Stack } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -14,7 +16,43 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '../../hooks/useTheme';
 import { useApiStore } from '../../stores/apiStore';
 import { useEnvironmentStore } from '../../stores/environmentStore';
+import { useLanguageStore } from '../../stores/languageStore';
 import { METHOD_COLORS, RunnerResult, getStatusColor } from '../../types/api';
+
+function parseCSV(csv: string): Record<string, string>[] {
+  const lines = csv.trim().split('\n').map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map((h) => h.trim().replace(/^["']|["']$/g, ''));
+  return lines.slice(1).map((line) => {
+    const values: string[] = [];
+    let current = '';
+    let inQuote = false;
+    for (const ch of line) {
+      if (ch === '"' && !inQuote) { inQuote = true; continue; }
+      if (ch === '"' && inQuote) { inQuote = false; continue; }
+      if (ch === ',' && !inQuote) { values.push(current.trim()); current = ''; continue; }
+      current += ch;
+    }
+    values.push(current.trim());
+    const row: Record<string, string> = {};
+    headers.forEach((h, i) => { row[h] = values[i] || ''; });
+    return row;
+  });
+}
+
+function parseDataJSON(json: string): Record<string, string>[] {
+  const parsed = JSON.parse(json);
+  if (Array.isArray(parsed)) return parsed.map((item) => {
+    const row: Record<string, string> = {};
+    for (const [k, v] of Object.entries(item)) row[k] = String(v ?? '');
+    return row;
+  });
+  return [];
+}
+
+function resolveDataVars(text: string, dataRow: Record<string, string>): string {
+  return text.replace(/\{\{data\.(\w+)\}\}/g, (_, key) => dataRow[key] ?? `{{data.${key}}}`);
+}
 
 export default function CollectionRunnerScreen() {
   const { colors, isDark } = useTheme();
@@ -28,127 +66,137 @@ export default function CollectionRunnerScreen() {
   const collection = collections.find((c) => c.id === collectionId);
   const colEndpoints = endpoints.filter((e) => e.collectionId === collectionId);
 
+  const t = useLanguageStore((s) => s.t);
+
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<RunnerResult[]>([]);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [delayMs, setDelayMs] = useState(200);
 
+  // Data-driven testing
+  const [dataRows, setDataRows] = useState<Record<string, string>[]>([]);
+  const [dataModalVisible, setDataModalVisible] = useState(false);
+  const [dataText, setDataText] = useState('');
+  const [dataFormat, setDataFormat] = useState<'csv' | 'json'>('csv');
+  const [currentIteration, setCurrentIteration] = useState(0);
+  const [totalIterations, setTotalIterations] = useState(0);
+
   const padding = Platform.OS === 'web' ? 32 : 20;
   const cardBg = isDark ? colors.surface : colors.card;
+
+  const runEndpoint = async (ep: typeof colEndpoints[0], dataRow?: Record<string, string>) => {
+    const resolve = (text: string) => {
+      let resolved = resolveVariables(text);
+      if (dataRow) resolved = resolveDataVars(resolved, dataRow);
+      return resolved;
+    };
+
+    const resolvedUrl = resolve(ep.url);
+    const resolvedBody = resolve(ep.body);
+    const start = Date.now();
+
+    try {
+      const headerObj: Record<string, string> = {};
+      ep.headers.filter((h) => h.enabled).forEach((h) => {
+        headerObj[resolve(h.key)] = resolve(h.value);
+      });
+
+      const fetchOpts: RequestInit = { method: ep.method, headers: headerObj };
+      if (['POST', 'PUT', 'PATCH'].includes(ep.method) && resolvedBody) {
+        fetchOpts.body = resolvedBody;
+        if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
+      }
+
+      const res = await fetch(resolvedUrl, fetchOpts);
+      const elapsed = Date.now() - start;
+      const resBody = await res.text();
+      const success = res.status >= 200 && res.status < 400;
+
+      let passed = 0;
+      const totalAssertions = ep.assertions?.length || 0;
+      (ep.assertions || []).forEach((a) => {
+        let ok = false;
+        const expected = resolve(a.expected);
+        switch (a.type) {
+          case 'status': ok = res.status.toString() === expected; break;
+          case 'body_contains': ok = resBody.includes(expected); break;
+          case 'response_time': ok = elapsed <= parseInt(expected, 10); break;
+          case 'header_exists': ok = res.headers.has(expected); break;
+          case 'json_path':
+            try { const json = JSON.parse(resBody); ok = expected.split('.').reduce((o: any, k: string) => o?.[k], json) !== undefined; } catch { ok = false; }
+            break;
+        }
+        if (ok) passed++;
+      });
+
+      addCallLog({
+        endpointId: ep.id, endpointName: ep.name, collectionId: collectionId || '',
+        url: resolvedUrl, method: ep.method, statusCode: res.status,
+        responseTime: elapsed, responseSize: resBody.length, success, timestamp: Date.now(),
+      });
+
+      return {
+        endpointId: ep.id, endpointName: ep.name, method: ep.method, url: resolvedUrl,
+        statusCode: res.status, responseTime: elapsed,
+        success: success && (totalAssertions === 0 || passed === totalAssertions),
+        assertionsPassed: passed, assertionsTotal: totalAssertions, timestamp: Date.now(),
+      } as RunnerResult;
+    } catch (err: any) {
+      const elapsed = Date.now() - start;
+      return {
+        endpointId: ep.id, endpointName: ep.name, method: ep.method, url: resolvedUrl,
+        statusCode: 0, responseTime: elapsed, success: false,
+        assertionsPassed: 0, assertionsTotal: ep.assertions?.length || 0,
+        timestamp: Date.now(), error: err.message,
+      } as RunnerResult;
+    }
+  };
 
   const runAll = useCallback(async () => {
     setRunning(true);
     setResults([]);
     const newResults: RunnerResult[] = [];
+    const iterations = dataRows.length > 0 ? dataRows : [undefined];
+    setTotalIterations(iterations.length);
 
-    for (let i = 0; i < colEndpoints.length; i++) {
-      setCurrentIndex(i);
-      const ep = colEndpoints[i];
-      const resolvedUrl = resolveVariables(ep.url);
-      const resolvedBody = resolveVariables(ep.body);
+    for (let iter = 0; iter < iterations.length; iter++) {
+      setCurrentIteration(iter + 1);
+      const dataRow = iterations[iter];
 
-      const start = Date.now();
-      let result: RunnerResult;
-
-      try {
-        const headerObj: Record<string, string> = {};
-        ep.headers.filter((h) => h.enabled).forEach((h) => {
-          headerObj[resolveVariables(h.key)] = resolveVariables(h.value);
-        });
-
-        const fetchOpts: RequestInit = { method: ep.method, headers: headerObj };
-        if (['POST', 'PUT', 'PATCH'].includes(ep.method) && resolvedBody) {
-          fetchOpts.body = resolvedBody;
-          if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
+      for (let i = 0; i < colEndpoints.length; i++) {
+        setCurrentIndex(i);
+        const result = await runEndpoint(colEndpoints[i], dataRow);
+        if (dataRow) {
+          (result as any).iteration = iter + 1;
         }
+        newResults.push(result);
+        setResults([...newResults]);
 
-        const res = await fetch(resolvedUrl, fetchOpts);
-        const elapsed = Date.now() - start;
-        const resBody = await res.text();
-        const success = res.status >= 200 && res.status < 400;
-
-        // Run assertions
-        let passed = 0;
-        const totalAssertions = ep.assertions?.length || 0;
-        (ep.assertions || []).forEach((a) => {
-          let ok = false;
-          switch (a.type) {
-            case 'status':
-              ok = res.status.toString() === a.expected;
-              break;
-            case 'body_contains':
-              ok = resBody.includes(a.expected);
-              break;
-            case 'response_time':
-              ok = elapsed <= parseInt(a.expected, 10);
-              break;
-            case 'header_exists':
-              ok = res.headers.has(a.expected);
-              break;
-            case 'json_path':
-              try {
-                const json = JSON.parse(resBody);
-                ok = a.expected.split('.').reduce((o: any, k: string) => o?.[k], json) !== undefined;
-              } catch { ok = false; }
-              break;
-          }
-          if (ok) passed++;
-        });
-
-        result = {
-          endpointId: ep.id,
-          endpointName: ep.name,
-          method: ep.method,
-          url: resolvedUrl,
-          statusCode: res.status,
-          responseTime: elapsed,
-          success: success && (totalAssertions === 0 || passed === totalAssertions),
-          assertionsPassed: passed,
-          assertionsTotal: totalAssertions,
-          timestamp: Date.now(),
-        };
-
-        addCallLog({
-          endpointId: ep.id,
-          endpointName: ep.name,
-          collectionId: collectionId || '',
-          url: resolvedUrl,
-          method: ep.method,
-          statusCode: res.status,
-          responseTime: elapsed,
-          responseSize: resBody.length,
-          success,
-          timestamp: Date.now(),
-        });
-      } catch (err: any) {
-        const elapsed = Date.now() - start;
-        result = {
-          endpointId: ep.id,
-          endpointName: ep.name,
-          method: ep.method,
-          url: resolvedUrl,
-          statusCode: 0,
-          responseTime: elapsed,
-          success: false,
-          assertionsPassed: 0,
-          assertionsTotal: ep.assertions?.length || 0,
-          timestamp: Date.now(),
-          error: err.message,
-        };
+        if (i < colEndpoints.length - 1 && delayMs > 0) {
+          await new Promise((r) => setTimeout(r, delayMs));
+        }
       }
 
-      newResults.push(result);
-      setResults([...newResults]);
-
-      // Delay between requests
-      if (i < colEndpoints.length - 1 && delayMs > 0) {
+      // Delay between iterations
+      if (iter < iterations.length - 1 && delayMs > 0) {
         await new Promise((r) => setTimeout(r, delayMs));
       }
     }
 
     setCurrentIndex(-1);
+    setCurrentIteration(0);
     setRunning(false);
-  }, [colEndpoints, resolveVariables, delayMs]);
+  }, [colEndpoints, resolveVariables, delayMs, dataRows]);
+
+  const handleLoadData = () => {
+    try {
+      const rows = dataFormat === 'csv' ? parseCSV(dataText) : parseDataJSON(dataText);
+      if (rows.length === 0) return;
+      setDataRows(rows);
+      setDataModalVisible(false);
+      setDataText('');
+    } catch {}
+  };
 
   const totalPassed = results.filter((r) => r.success).length;
   const totalFailed = results.filter((r) => !r.success).length;
@@ -200,6 +248,90 @@ export default function CollectionRunnerScreen() {
             ))}
           </View>
 
+          {/* Data-Driven Testing */}
+          <View style={[styles.dataSection, { backgroundColor: cardBg }]}>
+            <View style={styles.dataSectionHeader}>
+              <MaterialCommunityIcons name="database-outline" size={18} color={colors.primary} />
+              <Text style={[styles.dataSectionTitle, { color: colors.text }]}>{t('dataDrivenTesting')}</Text>
+              <TouchableOpacity
+                style={[styles.dataBtn, { backgroundColor: colors.primary + '15' }]}
+                onPress={() => setDataModalVisible(true)}
+              >
+                <MaterialCommunityIcons name="upload-outline" size={14} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 12, fontWeight: '600' }}>{t('loadData')}</Text>
+              </TouchableOpacity>
+            </View>
+            {dataRows.length > 0 ? (
+              <View style={styles.dataInfo}>
+                <View style={[styles.dataInfoBadge, { backgroundColor: '#3FB95015' }]}>
+                  <Text style={{ color: '#3FB950', fontSize: 13, fontWeight: '700' }}>
+                    {dataRows.length} {t('iterations')}
+                  </Text>
+                </View>
+                <Text style={{ color: colors.textTertiary, fontSize: 12 }}>
+                  {t('dataFields')}: {Object.keys(dataRows[0]).join(', ')}
+                </Text>
+                <TouchableOpacity onPress={() => setDataRows([])}>
+                  <MaterialCommunityIcons name="close-circle" size={18} color={colors.textTertiary} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <Text style={{ color: colors.textTertiary, fontSize: 12, marginTop: 6 }}>
+                {t('dataDrivenHint')}
+              </Text>
+            )}
+          </View>
+
+          {/* Data Modal */}
+          <Modal visible={dataModalVisible} animationType="slide" presentationStyle="pageSheet">
+            <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+              <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+                <TouchableOpacity onPress={() => setDataModalVisible(false)}>
+                  <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}>{t('cancel')}</Text>
+                </TouchableOpacity>
+                <Text style={[styles.modalTitle, { color: colors.text }]}>{t('loadTestData')}</Text>
+                <TouchableOpacity onPress={handleLoadData}>
+                  <Text style={{ color: colors.primary, fontSize: 16, fontWeight: '700' }}>{t('load')}</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={{ padding: 20 }} keyboardShouldPersistTaps="handled">
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+                  {(['csv', 'json'] as const).map((fmt) => (
+                    <TouchableOpacity
+                      key={fmt}
+                      style={[styles.fmtBtn, { backgroundColor: dataFormat === fmt ? colors.primary : cardBg }]}
+                      onPress={() => setDataFormat(fmt)}
+                    >
+                      <Text style={{ color: dataFormat === fmt ? '#FFF' : colors.text, fontSize: 14, fontWeight: '700' }}>
+                        {fmt.toUpperCase()}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TextInput
+                  style={[styles.dataInput, { backgroundColor: cardBg, color: colors.text }]}
+                  value={dataText}
+                  onChangeText={setDataText}
+                  placeholder={dataFormat === 'csv'
+                    ? 'name,email,age\nJohn,john@test.com,25\nJane,jane@test.com,30'
+                    : '[{"name":"John","email":"john@test.com"},{"name":"Jane","email":"jane@test.com"}]'
+                  }
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  textAlignVertical="top"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                <View style={[styles.hintBox, { backgroundColor: colors.primary + '10' }]}>
+                  <MaterialCommunityIcons name="information-outline" size={16} color={colors.primary} />
+                  <Text style={{ color: colors.primary, fontSize: 12, flex: 1 }}>
+                    {t('dataDrivenUsage')}
+                  </Text>
+                </View>
+              </ScrollView>
+            </SafeAreaView>
+          </Modal>
+
           {/* Run Button */}
           <TouchableOpacity
             style={[styles.runBtn, { backgroundColor: running ? colors.textTertiary : colors.primary }]}
@@ -209,12 +341,20 @@ export default function CollectionRunnerScreen() {
             {running ? (
               <>
                 <ActivityIndicator size="small" color="#FFF" />
-                <Text style={styles.runBtnText}>Running {currentIndex + 1}/{colEndpoints.length}...</Text>
+                <Text style={styles.runBtnText}>
+                  {dataRows.length > 0
+                    ? `${t('running')} ${currentIteration}/${totalIterations} - ${currentIndex + 1}/${colEndpoints.length}`
+                    : `${t('running')} ${currentIndex + 1}/${colEndpoints.length}...`}
+                </Text>
               </>
             ) : (
               <>
                 <MaterialCommunityIcons name="play" size={20} color="#FFF" />
-                <Text style={styles.runBtnText}>Run All Endpoints</Text>
+                <Text style={styles.runBtnText}>
+                  {dataRows.length > 0
+                    ? `${t('runAllEndpoints')} (${dataRows.length} ${t('iterations')})`
+                    : t('runAllEndpoints')}
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -258,7 +398,14 @@ export default function CollectionRunnerScreen() {
                   <Text style={[styles.methodText, { color: METHOD_COLORS[r.method] }]}>{r.method}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.resultName, { color: colors.text }]}>{r.endpointName}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Text style={[styles.resultName, { color: colors.text }]}>{r.endpointName}</Text>
+                    {(r as any).iteration && (
+                      <View style={[styles.iterBadge, { backgroundColor: colors.primary + '15' }]}>
+                        <Text style={{ color: colors.primary, fontSize: 9, fontWeight: '700' }}>#{(r as any).iteration}</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={[styles.resultUrl, { color: colors.textTertiary }]} numberOfLines={1}>{r.url}</Text>
                 </View>
               </View>
@@ -350,4 +497,20 @@ const styles = StyleSheet.create({
 
   runningCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: 12, marginTop: 8 },
   runningText: { fontSize: 14, fontWeight: '600' },
+
+  // Data-driven
+  dataSection: { borderRadius: 14, padding: 14, marginTop: 12 },
+  dataSectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  dataSectionTitle: { fontSize: 15, fontWeight: '700', flex: 1 },
+  dataBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
+  dataInfo: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' },
+  dataInfoBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  iterBadge: { paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4 },
+
+  // Modal
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth },
+  modalTitle: { fontSize: 17, fontWeight: '700' },
+  fmtBtn: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  dataInput: { borderRadius: 12, padding: 14, fontSize: 13, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', minHeight: 200, textAlignVertical: 'top' },
+  hintBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderRadius: 10, padding: 12, marginTop: 14 },
 });

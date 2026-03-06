@@ -45,6 +45,7 @@ export default function ToolsScreen() {
         { key: 'quickSend', icon: 'send-outline', color: '#30D158', route: '/quicksend' },
         { key: 'requestChaining', icon: 'link-variant', color: '#BC8CFF', route: '/chaining' },
         { key: 'benchmark', icon: 'speedometer', color: '#FF6961', route: '/benchmark' },
+        { key: 'graphqlExplorer', icon: 'graphql', color: '#E535AB', route: '/graphqlexplorer' },
       ],
     },
     {
@@ -55,6 +56,7 @@ export default function ToolsScreen() {
         { key: 'globalSearch', icon: 'magnify', color: '#8B949E', route: '/search' },
         { key: 'aiAnalysis', icon: 'robot-outline', color: '#FF9500', route: '/aianalysis' },
         { key: 'apiDocs', icon: 'file-document-multiple-outline', color: '#3FB950', route: '/apidocs' },
+        { key: 'responseViewer', icon: 'eye-outline', color: '#64D2FF', route: '/responseviewer' },
       ],
     },
     {

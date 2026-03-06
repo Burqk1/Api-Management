@@ -41,7 +41,46 @@ export default function ImportScreen() {
     { key: 'har', label: 'HAR', icon: 'web', color: '#58A6FF' },
   ];
 
+  const parsePostmanAuth = (auth: any): any => {
+    if (!auth) return undefined;
+    const type = auth.type;
+    if (type === 'bearer') {
+      const token = auth.bearer?.find((b: any) => b.key === 'token')?.value || '';
+      return { type: 'bearer', bearer: { token } };
+    }
+    if (type === 'basic') {
+      const username = auth.basic?.find((b: any) => b.key === 'username')?.value || '';
+      const password = auth.basic?.find((b: any) => b.key === 'password')?.value || '';
+      return { type: 'basic', basic: { username, password } };
+    }
+    if (type === 'apikey') {
+      const key = auth.apikey?.find((b: any) => b.key === 'key')?.value || '';
+      const value = auth.apikey?.find((b: any) => b.key === 'value')?.value || '';
+      const inField = auth.apikey?.find((b: any) => b.key === 'in')?.value || 'header';
+      return { type: 'apikey', apikey: { key, value, addTo: inField === 'query' ? 'query' : 'header' } };
+    }
+    if (type === 'oauth2') {
+      const get = (k: string) => auth.oauth2?.find((b: any) => b.key === k)?.value || '';
+      return {
+        type: 'oauth2',
+        oauth2: {
+          grantType: get('grant_type') || 'authorization_code',
+          authUrl: get('authUrl'),
+          tokenUrl: get('accessTokenUrl'),
+          clientId: get('clientId'),
+          clientSecret: get('clientSecret'),
+          scope: get('scope'),
+          redirectUri: get('redirect_uri'),
+          accessToken: get('accessToken'),
+        },
+      };
+    }
+    return undefined;
+  };
+
   const parsePostman = (data: any) => {
+    // Support both v2.0 and v2.1 formats
+    const collectionAuth = data.auth ? parsePostmanAuth(data.auth) : undefined;
     const col = addCollection({
       name: data.info?.name || 'Imported Collection',
       description: data.info?.description || '',
@@ -65,14 +104,80 @@ export default function ImportScreen() {
         if (typeof req.url === 'string') url = req.url;
         else if (req.url?.raw) url = req.url.raw;
 
+        // Replace Postman variables {{var}} — keep as-is (compatible with our env system)
+
         const headers = (req.header || []).map((h: any) => ({
           key: h.key || '',
           value: h.value || '',
           enabled: !h.disabled,
         }));
 
+        // Body handling
         let body = '';
-        if (req.body?.raw) body = req.body.raw;
+        let bodyType: any = 'none';
+        let formData: any[] | undefined;
+        let isGraphQL = false;
+        let graphqlQuery = '';
+        let graphqlVariables = '';
+
+        if (req.body) {
+          const bMode = req.body.mode;
+          if (bMode === 'raw') {
+            body = req.body.raw || '';
+            const lang = req.body.options?.raw?.language;
+            bodyType = lang === 'json' ? 'json' : 'raw';
+          } else if (bMode === 'formdata') {
+            bodyType = 'form-data';
+            formData = (req.body.formdata || []).map((f: any) => ({
+              key: f.key || '',
+              value: f.value || '',
+              type: f.type === 'file' ? 'file' : 'text',
+              enabled: !f.disabled,
+            }));
+          } else if (bMode === 'urlencoded') {
+            bodyType = 'x-www-form-urlencoded';
+            body = (req.body.urlencoded || [])
+              .map((u: any) => `${encodeURIComponent(u.key)}=${encodeURIComponent(u.value || '')}`)
+              .join('&');
+          } else if (bMode === 'graphql') {
+            isGraphQL = true;
+            bodyType = 'graphql';
+            graphqlQuery = req.body.graphql?.query || '';
+            graphqlVariables = req.body.graphql?.variables || '';
+          }
+        }
+
+        // Auth (item-level overrides collection-level)
+        const auth = req.auth ? parsePostmanAuth(req.auth) : collectionAuth;
+
+        // Pre-request & test scripts
+        let preRequestScript = '';
+        let postRequestScript = '';
+        for (const ev of (item.event || [])) {
+          if (ev.listen === 'prerequest' && ev.script?.exec) {
+            preRequestScript = Array.isArray(ev.script.exec) ? ev.script.exec.join('\n') : ev.script.exec;
+          }
+          if (ev.listen === 'test' && ev.script?.exec) {
+            postRequestScript = Array.isArray(ev.script.exec) ? ev.script.exec.join('\n') : ev.script.exec;
+          }
+        }
+
+        // Convert Postman tests to assertions
+        const assertions: any[] = [];
+        if (postRequestScript) {
+          const statusMatch = postRequestScript.match(/status\)\.to\.(?:equal|eql)\((\d+)\)/);
+          if (statusMatch) {
+            assertions.push({ id: generateId(), type: 'status', expected: statusMatch[1] });
+          }
+          const bodyMatch = postRequestScript.match(/to\.(?:include|contain)\(['"](.+?)['"]\)/);
+          if (bodyMatch) {
+            assertions.push({ id: generateId(), type: 'body_contains', expected: bodyMatch[1] });
+          }
+          const timeMatch = postRequestScript.match(/responseTime\)\.to\.be\.below\((\d+)\)/);
+          if (timeMatch) {
+            assertions.push({ id: generateId(), type: 'response_time', expected: timeMatch[1] });
+          }
+        }
 
         addEndpoint({
           name: item.name || url,
@@ -80,8 +185,16 @@ export default function ImportScreen() {
           method,
           headers,
           body,
+          bodyType,
+          formData,
           collectionId,
-          assertions: [],
+          assertions,
+          auth,
+          preRequestScript: preRequestScript || undefined,
+          postRequestScript: postRequestScript || undefined,
+          isGraphQL: isGraphQL || undefined,
+          graphqlQuery: graphqlQuery || undefined,
+          graphqlVariables: graphqlVariables || undefined,
         });
         count++;
       }
@@ -119,33 +232,176 @@ export default function ImportScreen() {
     return requests.length;
   };
 
+  const resolveRef = (obj: any, root: any): any => {
+    if (obj && obj.$ref && typeof obj.$ref === 'string') {
+      const parts = obj.$ref.replace('#/', '').split('/');
+      let resolved = root;
+      for (const p of parts) resolved = resolved?.[p];
+      return resolved || obj;
+    }
+    return obj;
+  };
+
+  const generateExampleFromSchema = (schema: any, root: any, depth = 0): any => {
+    if (!schema || depth > 5) return '';
+    schema = resolveRef(schema, root);
+    if (schema.example !== undefined) return schema.example;
+    if (schema.default !== undefined) return schema.default;
+    if (schema.enum?.length) return schema.enum[0];
+    switch (schema.type) {
+      case 'string': return schema.format === 'email' ? 'user@example.com' : schema.format === 'date-time' ? new Date().toISOString() : 'string';
+      case 'number': case 'integer': return schema.minimum ?? 0;
+      case 'boolean': return true;
+      case 'array': {
+        const itemSchema = resolveRef(schema.items, root);
+        return itemSchema ? [generateExampleFromSchema(itemSchema, root, depth + 1)] : [];
+      }
+      case 'object': {
+        const result: Record<string, any> = {};
+        for (const [key, val] of Object.entries(schema.properties || {})) {
+          result[key] = generateExampleFromSchema(val as any, root, depth + 1);
+        }
+        return result;
+      }
+      default: return '';
+    }
+  };
+
   const parseOpenAPI = (data: any) => {
     const title = data.info?.title || 'OpenAPI Import';
-    const baseUrl = data.servers?.[0]?.url || '';
+    const version = data.info?.version || '';
+    // Support both OAS 3.x servers and Swagger 2.0 host+basePath
+    let baseUrl = '';
+    if (data.servers?.[0]?.url) {
+      baseUrl = data.servers[0].url;
+    } else if (data.host) {
+      const scheme = data.schemes?.[0] || 'https';
+      baseUrl = `${scheme}://${data.host}${data.basePath || ''}`;
+    }
+    // Remove trailing slash
+    baseUrl = baseUrl.replace(/\/$/, '');
+
     const col = addCollection({
-      name: title,
+      name: title + (version ? ` v${version}` : ''),
       description: data.info?.description || '',
       color: '#6BA539',
       icon: 'api',
       baseUrl,
     });
 
+    // Parse global security for default auth
+    const securitySchemes = data.components?.securitySchemes || data.securityDefinitions || {};
+    const globalSecurity = data.security?.[0];
+    const getAuthFromSecurity = (sec: any): any => {
+      if (!sec) return undefined;
+      const schemeName = Object.keys(sec)[0];
+      if (!schemeName) return undefined;
+      const scheme = securitySchemes[schemeName];
+      if (!scheme) return undefined;
+      if (scheme.type === 'http' && scheme.scheme === 'bearer') {
+        return { type: 'bearer', bearer: { token: '' } };
+      }
+      if (scheme.type === 'http' && scheme.scheme === 'basic') {
+        return { type: 'basic', basic: { username: '', password: '' } };
+      }
+      if (scheme.type === 'apiKey') {
+        return { type: 'apikey', apikey: { key: scheme.name || 'api_key', value: '', addTo: scheme.in === 'query' ? 'query' : 'header' } };
+      }
+      if (scheme.type === 'oauth2') {
+        const flows = scheme.flows || {};
+        const flow = flows.authorizationCode || flows.clientCredentials || flows.implicit || flows.password || {};
+        return {
+          type: 'oauth2',
+          oauth2: {
+            grantType: flows.authorizationCode ? 'authorization_code' : flows.clientCredentials ? 'client_credentials' : 'authorization_code',
+            authUrl: flow.authorizationUrl || '',
+            tokenUrl: flow.tokenUrl || '',
+            clientId: '',
+            scope: Object.keys(flow.scopes || {}).join(' '),
+          },
+        };
+      }
+      return undefined;
+    };
+
+    const defaultAuth = getAuthFromSecurity(globalSecurity);
+
     let count = 0;
     const paths = data.paths || {};
-    for (const [path, methods] of Object.entries(paths)) {
-      for (const [method, spec] of Object.entries(methods as Record<string, any>)) {
-        if (['get', 'post', 'put', 'patch', 'delete', 'head', 'options'].includes(method)) {
-          addEndpoint({
-            name: spec.summary || spec.operationId || `${method.toUpperCase()} ${path}`,
-            url: baseUrl + path,
-            method: method.toUpperCase() as HttpMethod,
-            headers: [],
-            body: '',
-            collectionId: col.id,
-            assertions: [],
-          });
-          count++;
+    for (const [path, pathItem] of Object.entries(paths)) {
+      const pathParams = (pathItem as any).parameters || [];
+      for (const [method, rawSpec] of Object.entries(pathItem as Record<string, any>)) {
+        if (!['get', 'post', 'put', 'patch', 'delete', 'head', 'options'].includes(method)) continue;
+        const spec = resolveRef(rawSpec, data);
+
+        // Build headers from parameters
+        const headers: { key: string; value: string; enabled: boolean }[] = [];
+        const allParams = [...pathParams, ...(spec.parameters || [])].map((p: any) => resolveRef(p, data));
+
+        // Build URL with query params
+        let fullUrl = baseUrl + path;
+        const queryParams = allParams.filter((p: any) => p.in === 'query');
+        if (queryParams.length > 0) {
+          fullUrl += '?' + queryParams.map((p: any) => `${p.name}=${p.example || p.schema?.example || ''}`).join('&');
         }
+
+        // Header params
+        allParams.filter((p: any) => p.in === 'header').forEach((p: any) => {
+          headers.push({ key: p.name, value: p.example || p.schema?.example || '', enabled: true });
+        });
+
+        // Replace path params with examples
+        allParams.filter((p: any) => p.in === 'path').forEach((p: any) => {
+          const example = p.example || p.schema?.example || `{${p.name}}`;
+          fullUrl = fullUrl.replace(`{${p.name}}`, String(example));
+        });
+
+        // Request body
+        let body = '';
+        let bodyType: any = 'none';
+        const reqBody = resolveRef(spec.requestBody, data);
+        if (reqBody?.content) {
+          if (reqBody.content['application/json']) {
+            bodyType = 'json';
+            const schema = resolveRef(reqBody.content['application/json'].schema, data);
+            const example = reqBody.content['application/json'].example || (schema ? generateExampleFromSchema(schema, data) : '');
+            body = typeof example === 'string' ? example : JSON.stringify(example, null, 2);
+          } else if (reqBody.content['multipart/form-data']) {
+            bodyType = 'form-data';
+          } else if (reqBody.content['application/x-www-form-urlencoded']) {
+            bodyType = 'x-www-form-urlencoded';
+          }
+        }
+        // Swagger 2.0 body parameter
+        const bodyParam = allParams.find((p: any) => p.in === 'body');
+        if (bodyParam && !body) {
+          bodyType = 'json';
+          const schema = resolveRef(bodyParam.schema, data);
+          const example = schema ? generateExampleFromSchema(schema, data) : '';
+          body = typeof example === 'string' ? example : JSON.stringify(example, null, 2);
+        }
+
+        // Content-Type header
+        if (bodyType === 'json' && !headers.find(h => h.key.toLowerCase() === 'content-type')) {
+          headers.push({ key: 'Content-Type', value: 'application/json', enabled: true });
+        }
+
+        // Auth (operation-level overrides global)
+        const opSecurity = spec.security?.[0];
+        const auth = opSecurity !== undefined ? getAuthFromSecurity(opSecurity) : defaultAuth;
+
+        addEndpoint({
+          name: spec.summary || spec.operationId || `${method.toUpperCase()} ${path}`,
+          url: fullUrl,
+          method: method.toUpperCase() as HttpMethod,
+          headers,
+          body,
+          bodyType,
+          collectionId: col.id,
+          assertions: [],
+          auth,
+        });
+        count++;
       }
     }
     return count;

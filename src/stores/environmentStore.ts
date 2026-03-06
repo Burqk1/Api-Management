@@ -19,12 +19,14 @@ interface EnvironmentState {
   environments: Environment[];
   activeEnvId: string | null;
   lastResponse: Record<string, any> | null;
+  globalVariables: EnvVariable[];
   addEnvironment: (data: Omit<Environment, 'id' | 'createdAt'>) => void;
   updateEnvironment: (id: string, data: Partial<Environment>) => void;
   deleteEnvironment: (id: string) => void;
   setActiveEnv: (id: string | null) => void;
   getActiveEnv: () => Environment | null;
   setLastResponse: (data: Record<string, any>) => void;
+  setGlobalVariables: (vars: EnvVariable[]) => void;
   resolveVariables: (text: string) => string;
   initialize: () => Promise<void>;
 }
@@ -33,6 +35,7 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
   environments: [],
   activeEnvId: null,
   lastResponse: null,
+  globalVariables: [],
 
   addEnvironment: (data) => {
     const env: Environment = { ...data, id: generateId(), createdAt: Date.now() };
@@ -73,9 +76,16 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
 
   setLastResponse: (data) => set({ lastResponse: data }),
 
+  setGlobalVariables: (vars) => {
+    AsyncStorage.setItem('global_variables', JSON.stringify(vars));
+    set({ globalVariables: vars });
+  },
+
   // Replace {{VAR_NAME}} and {{response.path}} with values
+  // Resolution order: response > env-specific > global
   resolveVariables: (text) => {
     const env = get().getActiveEnv();
+    const globalVars = get().globalVariables;
     const lastResp = get().lastResponse;
 
     // First resolve response chaining: {{response.path.to.field}}
@@ -87,25 +97,32 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       } catch { return match; }
     });
 
-    // Then resolve environment variables
-    if (env) {
-      resolved = resolved.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+    // Resolve environment variables (env-specific overrides global)
+    resolved = resolved.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+      // Check env-specific first
+      if (env) {
         const v = env.variables.find((v: EnvVariable) => v.key === key);
-        return v ? v.value : match;
-      });
-    }
+        if (v) return v.value;
+      }
+      // Fall back to global
+      const g = globalVars.find((v: EnvVariable) => v.key === key);
+      return g ? g.value : match;
+    });
+
     return resolved;
   },
 
   initialize: async () => {
     try {
-      const [envData, activeData] = await Promise.all([
+      const [envData, activeData, globalData] = await Promise.all([
         AsyncStorage.getItem('environments'),
         AsyncStorage.getItem('active_env'),
+        AsyncStorage.getItem('global_variables'),
       ]);
       set({
         environments: envData ? JSON.parse(envData) : [],
         activeEnvId: activeData ? JSON.parse(activeData) : null,
+        globalVariables: globalData ? JSON.parse(globalData) : [],
       });
     } catch {}
   },

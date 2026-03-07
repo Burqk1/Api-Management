@@ -14,14 +14,26 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.devtoolbox.app"
+      "bundleIdentifier": "com.devtoolbox.app",
+      "associatedDomains": ["applinks:devtoolbox.app"]
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#000000",
         "foregroundImage": "./assets/adaptive-icon.png"
       },
-      "package": "com.devtoolbox.app"
+      "package": "com.devtoolbox.app",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "devtoolbox" },
+            { "scheme": "https", "host": "devtoolbox.app", "pathPrefix": "/open" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",

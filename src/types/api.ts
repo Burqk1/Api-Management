@@ -17,6 +17,9 @@ export interface OAuth2Config {
   accessToken?: string;
   refreshToken?: string;
   tokenExpiry?: number;
+  usePKCE?: boolean;
+  codeVerifier?: string;
+  authorizationCode?: string;
 }
 
 export interface AuthConfig {
@@ -27,7 +30,7 @@ export interface AuthConfig {
   oauth2?: OAuth2Config;
 }
 
-export type BodyType = 'none' | 'json' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'graphql';
+export type BodyType = 'none' | 'json' | 'form-data' | 'x-www-form-urlencoded' | 'raw' | 'binary' | 'xml' | 'graphql';
 
 export interface FormDataField {
   key: string;
@@ -107,6 +110,8 @@ export interface ApiEndpoint {
   graphqlVariables?: string;
   isFavorite?: boolean;
   schemaValidation?: SchemaValidation;
+  requestSettings?: RequestSettings;
+  notes?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -119,7 +124,14 @@ export interface ApiCollection {
   icon: string;
   baseUrl: string;
   auth?: AuthConfig;
+  parentId?: string;
   createdAt: number;
+}
+
+export interface RequestSettings {
+  timeout?: number;
+  followRedirects?: boolean;
+  maxRedirects?: number;
 }
 
 export interface ApiCallLog {

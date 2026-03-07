@@ -15,6 +15,9 @@ import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { useCookieStore } from '../stores/cookieStore';
 import { useProxyStore } from '../stores/proxyStore';
 import { useHistoryStore } from '../stores/historyStore';
+import { useSecurityStore } from '../stores/securityStore';
+import { useWorkspaceStore } from '../stores/workspaceStore';
+import { useCostGuardStore } from '../stores/costGuardStore';
 
 export default function RootLayout() {
   const initialize = useThemeStore((s) => s.initialize);
@@ -30,6 +33,9 @@ export default function RootLayout() {
   const initCookie = useCookieStore((s) => s.initialize);
   const initProxy = useProxyStore((s) => s.initialize);
   const initHistory = useHistoryStore((s) => s.initialize);
+  const initSecurity = useSecurityStore((s) => s.initialize);
+  const initWorkspace = useWorkspaceStore((s) => s.initialize);
+  const initCostGuard = useCostGuardStore((s) => s.initialize);
   const router = useRouter();
   const t = useLanguageStore((s) => s.t);
   const colors = useThemeStore((s) => s.colors);
@@ -49,6 +55,9 @@ export default function RootLayout() {
     initCookie();
     initProxy();
     initHistory();
+    initSecurity();
+    initWorkspace();
+    initCostGuard();
 
     // Show onboarding on first launch
     AsyncStorage.getItem('onboarding_done').then((val) => {
@@ -198,6 +207,166 @@ export default function RootLayout() {
         <Stack.Screen
           name="history"
           options={{ headerBackTitle: t('cancel'), title: t('requestHistory') }}
+        />
+        <Stack.Screen
+          name="jsonpath"
+          options={{ headerBackTitle: t('cancel'), title: t('jsonPathEvaluator') || 'JSONPath Evaluator', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="grpc"
+          options={{ headerBackTitle: t('cancel'), title: t('grpcClient') || 'gRPC Client', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="datadriven"
+          options={{ headerBackTitle: t('cancel'), title: t('dataDrivenTesting') || 'Data-Driven Testing', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="testreport"
+          options={{ headerBackTitle: t('cancel'), title: t('testReport') || 'Test Report' }}
+        />
+        <Stack.Screen
+          name="workspaces"
+          options={{ headerBackTitle: t('cancel'), title: t('workspaces') || 'Workspaces', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="dynamicvars"
+          options={{ headerBackTitle: t('cancel'), title: t('dynamicVariables') || 'Dynamic Variables', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="lockscreen"
+          options={{ headerShown: false, presentation: 'fullScreenModal' }}
+        />
+        <Stack.Screen
+          name="mqtt"
+          options={{ headerBackTitle: t('cancel'), title: t('mqttClient') || 'MQTT Client', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="scheduledruns"
+          options={{ headerBackTitle: t('cancel'), title: t('scheduledRuns') || 'Scheduled Runs', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="contracttest"
+          options={{ headerBackTitle: t('cancel'), title: t('contractTesting') || 'Contract Testing', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="variablelookup"
+          options={{ headerBackTitle: t('cancel'), title: t('variableQuickLook') || 'Variable Quick Look', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="responsediff"
+          options={{ headerBackTitle: t('cancel'), title: t('responseDiff') || 'Response Diff', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="keyboardshortcuts"
+          options={{ headerBackTitle: t('cancel'), title: t('keyboardShortcuts') || 'Keyboard Shortcuts', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="webhook"
+          options={{ headerBackTitle: t('cancel'), title: t('webhookTesting') || 'Webhook Testing', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="snippets"
+          options={{ headerBackTitle: t('cancel'), title: t('snippetLibrary') || 'Snippet Library', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="teamsync"
+          options={{ headerBackTitle: t('cancel'), title: t('teamSync') || 'Team Sync', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="gitsync"
+          options={{ headerBackTitle: t('cancel'), title: t('gitSync') || 'Git Sync', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="cloudmonitor"
+          options={{ headerBackTitle: t('cancel'), title: t('cloudMonitoring') || 'Cloud Monitoring', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="ratelimit"
+          options={{ headerBackTitle: t('cancel'), title: t('apiGateway') || 'API Gateway / Rate Limit', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="loadtest"
+          options={{ headerBackTitle: t('cancel'), title: t('loadTesting') || 'Load Testing', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="soap"
+          options={{ headerBackTitle: t('cancel'), title: t('soapClient') || 'SOAP Client', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="certpin"
+          options={{ headerBackTitle: t('cancel'), title: t('certPinning') || 'Certificate Pinning', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="changelog"
+          options={{ headerBackTitle: t('cancel'), title: t('apiChangelog') || 'API Changelog' }}
+        />
+        <Stack.Screen
+          name="waterfall"
+          options={{ headerBackTitle: t('cancel'), title: t('performanceWaterfall') || 'Performance Waterfall', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="fakegen"
+          options={{ headerBackTitle: t('cancel'), title: t('fakeDataGenerator') || 'Fake Data Generator', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="securityscan"
+          options={{ headerBackTitle: t('cancel'), title: t('securityScanning') || 'Security Scanner', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="governance"
+          options={{ headerBackTitle: t('cancel'), title: t('apiGovernance') || 'API Governance', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="openapivalid"
+          options={{ headerBackTitle: t('cancel'), title: t('openApiValidation') || 'OpenAPI Validation', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="graphqlsubs"
+          options={{ headerBackTitle: t('cancel'), title: t('graphqlSubscriptions') || 'GraphQL Subscriptions', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="annotations"
+          options={{ headerBackTitle: t('cancel'), title: t('annotations') || 'Annotations', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="trendanalytics"
+          options={{ headerBackTitle: t('cancel'), title: t('trendAnalytics') || 'Trend Analytics', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="visualdiff"
+          options={{ headerBackTitle: t('cancel'), title: t('visualDiff') || 'Visual Diff', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="varencrypt"
+          options={{ headerBackTitle: t('cancel'), title: t('variableEncryption') || 'Variable Encryption', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="bulkops"
+          options={{ headerBackTitle: t('cancel'), title: t('bulkOperations') || 'Bulk Operations', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="plugins"
+          options={{ headerBackTitle: t('cancel'), title: t('plugins') || 'Plugins', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="smartsuggest"
+          options={{ headerBackTitle: t('cancel'), title: t('smartSuggestions') || 'Smart Suggestions', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="responsetransform"
+          options={{ headerBackTitle: t('cancel'), title: t('responseTransform') || 'Response Transform', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="awsauth"
+          options={{ headerBackTitle: t('cancel'), title: t('cloudAuth') || 'Cloud Auth', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="interceptor"
+          options={{ headerBackTitle: t('cancel'), title: t('requestInterceptor') || 'Request Interceptor', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="testexec"
+          options={{ headerBackTitle: t('cancel'), title: t('testExecution') || 'Test Execution', presentation: 'modal' }}
         />
       </Stack>
     </>

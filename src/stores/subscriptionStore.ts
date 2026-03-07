@@ -4,41 +4,57 @@ import { useAuthStore, SubscriptionPlan } from './authStore';
 
 interface FeatureGate {
   maxCollections: number;
+  maxEndpointsPerCollection: number;
   maxRequestsPerDay: number;
+  maxCallLogs: number;
+  logRetentionDays: number;
   cloudSync: boolean;
   aiAnalysis: boolean;
   requestChaining: boolean;
   teamSharing: boolean;
   exportImport: boolean;
+  advancedTools: boolean;
 }
 
 const PLAN_LIMITS: Record<SubscriptionPlan, FeatureGate> = {
   free: {
     maxCollections: 3,
+    maxEndpointsPerCollection: 20,
     maxRequestsPerDay: 50,
+    maxCallLogs: 100,
+    logRetentionDays: 7,
     cloudSync: false,
     aiAnalysis: false,
     requestChaining: false,
     teamSharing: false,
     exportImport: true,
+    advancedTools: false,
   },
   pro: {
     maxCollections: Infinity,
+    maxEndpointsPerCollection: Infinity,
     maxRequestsPerDay: Infinity,
+    maxCallLogs: 5000,
+    logRetentionDays: 90,
     cloudSync: true,
     aiAnalysis: true,
     requestChaining: true,
     teamSharing: false,
     exportImport: true,
+    advancedTools: true,
   },
   team: {
     maxCollections: Infinity,
+    maxEndpointsPerCollection: Infinity,
     maxRequestsPerDay: Infinity,
+    maxCallLogs: 20000,
+    logRetentionDays: 365,
     cloudSync: true,
     aiAnalysis: true,
     requestChaining: true,
     teamSharing: true,
     exportImport: true,
+    advancedTools: true,
   },
 };
 

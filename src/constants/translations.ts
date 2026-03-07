@@ -582,6 +582,155 @@ export const translations: Record<Language, Record<string, string>> = {
     scriptConsole: 'Console',
     scriptTestsPassed: 'passed',
     scriptTestsFailed: 'failed',
+
+    // JSON Path Evaluator
+    jsonPathEvaluator: 'JSONPath Evaluator',
+    evaluate: 'Evaluate',
+    jsonPathEvaluatorDesc: 'Test JSONPath expressions on JSON data',
+
+    // gRPC
+    grpcClient: 'gRPC Client',
+    grpcClientDesc: 'Test gRPC services via gRPC-Web',
+
+    // Data-Driven Testing
+    dataDrivenTestingDesc: 'Run tests with CSV/JSON data sets',
+
+    // Test Report
+    testReport: 'Test Report',
+    testReportDesc: 'Export test results as HTML or JUnit',
+
+    // Workspace
+    workspaces: 'Workspaces',
+    workspacesDesc: 'Organize collections into workspaces',
+
+    // Security
+    biometricLock: 'Biometric Lock',
+    biometricLockDesc: 'Secure app with fingerprint or face',
+    autoLockTimeout: 'Auto Lock After',
+    immediately: 'Immediately',
+    minutes: 'minutes',
+
+    // Dynamic Variables
+    dynamicVariables: 'Dynamic Variables',
+    dynamicVariablesDesc: 'Auto-generated values like $timestamp, $guid',
+
+    // Request Settings
+    requestTimeout: 'Timeout',
+    followRedirects: 'Follow Redirects',
+    maxRedirects: 'Max Redirects',
+    requestSettingsTitle: 'Request Settings',
+
+    // Endpoint Notes
+    endpointNotes: 'Notes',
+    endpointNotesPlaceholder: 'Add notes or documentation for this endpoint...',
+    notesPlaceholder: 'Add notes about this endpoint...',
+
+    // MQTT
+    mqttClient: 'MQTT Client',
+    mqttClientDesc: 'Connect to MQTT brokers, publish & subscribe',
+
+    // Scheduled Runs
+    scheduledRuns: 'Scheduled Runs',
+    scheduledRunsDesc: 'Automated testing at set intervals',
+
+    // Contract Testing
+    contractTesting: 'Contract Testing',
+    contractTestingDesc: 'Validate API responses against schemas',
+
+    // Variable Quick Look
+    variableQuickLook: 'Variable Quick Look',
+    variableQuickLookDesc: 'Browse and test all variables',
+    searchVariables: 'Search variables...',
+
+    // Response Diff
+    responseDiff: 'Response Diff',
+    responseDiffDesc: 'Line-by-line response comparison',
+
+    // Keyboard Shortcuts
+    keyboardShortcuts: 'Keyboard Shortcuts',
+    keyboardShortcutsDesc: 'View all keyboard shortcuts for web',
+
+    // Folders
+    addFolder: 'Add Folder',
+    newFolder: 'New Folder',
+    folderName: 'Folder name',
+    create: 'Create',
+
+    // Webhook Testing
+    webhookTesting: 'Webhook Testing',
+    webhookTestingDesc: 'Receive and inspect incoming webhooks',
+
+    // Snippet Library
+    snippetLibrary: 'Snippet Library',
+    snippetLibraryDesc: 'Reusable code, header and body snippets',
+
+    // Team Sync
+    teamSync: 'Team Sync',
+    teamSyncDesc: 'Share collections with team members',
+
+    // Git Sync
+    gitSync: 'Git Sync',
+    gitSyncDesc: 'Version control collections with Git',
+
+    // Cloud Monitoring
+    cloudMonitoring: 'Cloud Monitoring',
+    cloudMonitoringDesc: 'Monitor API uptime and response times',
+
+    // API Gateway / Rate Limit
+    apiGateway: 'API Gateway / Rate Limit',
+    apiGatewayDesc: 'Test rate limiting and gateway behavior',
+
+    // Load Testing
+    loadTesting: 'Load Testing',
+    loadTestingDesc: 'Simulate concurrent users and traffic',
+
+    // SOAP Client
+    soapClient: 'SOAP Client',
+    soapClientDesc: 'Test SOAP/XML web services with WSDL',
+
+    // Certificate Pinning
+    certPinning: 'Certificate Pinning',
+    certPinningDesc: 'Pin and verify SSL certificate fingerprints',
+
+    // API Changelog
+    apiChangelog: 'API Changelog',
+    apiChangelogDesc: 'Track endpoint changes over time',
+
+    // New features - Wave 2
+    performanceWaterfall: 'Performance Waterfall',
+    performanceWaterfallDesc: 'DNS, TLS, TTFB timing breakdown',
+    fakeDataGenerator: 'Fake Data Generator',
+    fakeDataGeneratorDesc: 'Generate mock data for testing',
+    securityScanning: 'Security Scanner',
+    securityScanningDesc: 'Scan APIs for security issues',
+    apiGovernance: 'API Governance',
+    apiGovernanceDesc: 'Lint & audit REST best practices',
+    openApiValidation: 'OpenAPI Validation',
+    openApiValidationDesc: 'Validate OpenAPI/Swagger schemas',
+    graphqlSubscriptions: 'GraphQL Subscriptions',
+    graphqlSubscriptionsDesc: 'Real-time GraphQL subscription client',
+    annotations: 'Annotations',
+    annotationsDesc: 'Add comments & notes to endpoints',
+    trendAnalytics: 'Trend Analytics',
+    trendAnalyticsDesc: 'API health score & performance trends',
+    visualDiff: 'Visual Diff',
+    visualDiffDesc: 'Compare request history visually',
+    variableEncryption: 'Variable Encryption',
+    variableEncryptionDesc: 'Encrypt sensitive variables',
+    bulkOperations: 'Bulk Operations',
+    bulkOperationsDesc: 'Find & replace across endpoints',
+    plugins: 'Plugins',
+    pluginsDesc: 'Custom pre/post request plugins',
+    smartSuggestions: 'Smart Suggestions',
+    smartSuggestionsDesc: 'Common headers, params & status codes',
+    responseTransform: 'Response Transform',
+    responseTransformDesc: 'Convert between JSON, XML, YAML, CSV',
+    cloudAuth: 'Cloud Auth',
+    cloudAuthDesc: 'AWS Sig v4, Azure AD, GCP auth',
+    requestInterceptor: 'Request Interceptor',
+    requestInterceptorDesc: 'Intercept & modify requests/responses',
+    testExecution: 'Test Execution',
+    testExecutionDesc: 'Advanced test runner with breakpoints',
   },
 
   tr: {
@@ -1165,5 +1314,154 @@ export const translations: Record<Language, Record<string, string>> = {
     scriptConsole: 'Konsol',
     scriptTestsPassed: 'basarili',
     scriptTestsFailed: 'basarisiz',
+
+    // JSON Path Evaluator
+    jsonPathEvaluator: 'JSONPath Degerlendirici',
+    evaluate: 'Degerlendir',
+    jsonPathEvaluatorDesc: 'JSON verisi uzerinde JSONPath ifadelerini test et',
+
+    // gRPC
+    grpcClient: 'gRPC Istemcisi',
+    grpcClientDesc: 'gRPC-Web uzerinden gRPC servislerini test et',
+
+    // Data-Driven Testing
+    dataDrivenTestingDesc: 'CSV/JSON veri setleriyle testleri calistir',
+
+    // Test Report
+    testReport: 'Test Raporu',
+    testReportDesc: 'Test sonuclarini HTML veya JUnit olarak disari aktar',
+
+    // Workspace
+    workspaces: 'Calisma Alanlari',
+    workspacesDesc: 'Koleksiyonlari calisma alanlarina organize et',
+
+    // Security
+    biometricLock: 'Biyometrik Kilit',
+    biometricLockDesc: 'Uygulamayi parmak izi veya yuz ile koru',
+    autoLockTimeout: 'Otomatik Kilitle',
+    immediately: 'Hemen',
+    minutes: 'dakika',
+
+    // Dynamic Variables
+    dynamicVariables: 'Dinamik Degiskenler',
+    dynamicVariablesDesc: '$timestamp, $guid gibi otomatik degerler',
+
+    // Request Settings
+    requestTimeout: 'Zaman Asimi',
+    followRedirects: 'Yonlendirmeleri Takip Et',
+    maxRedirects: 'Maks Yonlendirme',
+    requestSettingsTitle: 'Istek Ayarlari',
+
+    // Endpoint Notes
+    endpointNotes: 'Notlar',
+    endpointNotesPlaceholder: 'Bu endpoint icin not veya dokumantasyon ekleyin...',
+    notesPlaceholder: 'Bu endpoint hakkinda not ekleyin...',
+
+    // MQTT
+    mqttClient: 'MQTT Istemcisi',
+    mqttClientDesc: 'MQTT brokerlarına baglan, yayinla ve abone ol',
+
+    // Scheduled Runs
+    scheduledRuns: 'Zamanlanmis Calistirimalar',
+    scheduledRunsDesc: 'Belirli aralıklarla otomatik test',
+
+    // Contract Testing
+    contractTesting: 'Sozlesme Testi',
+    contractTestingDesc: 'API yanitlarini semalara gore dogrula',
+
+    // Variable Quick Look
+    variableQuickLook: 'Degisken Hizli Bakis',
+    variableQuickLookDesc: 'Tum degiskenleri goruntule ve test et',
+    searchVariables: 'Degisken ara...',
+
+    // Response Diff
+    responseDiff: 'Yanit Karsilastirma',
+    responseDiffDesc: 'Satir satir yanit karsilastirmasi',
+
+    // Keyboard Shortcuts
+    keyboardShortcuts: 'Klavye Kisayollari',
+    keyboardShortcutsDesc: 'Web icin tum klavye kisayollarini gor',
+
+    // Folders
+    addFolder: 'Klasor Ekle',
+    newFolder: 'Yeni Klasor',
+    folderName: 'Klasor adi',
+    create: 'Olustur',
+
+    // Webhook Testing
+    webhookTesting: 'Webhook Testi',
+    webhookTestingDesc: 'Gelen webhooklari al ve incele',
+
+    // Snippet Library
+    snippetLibrary: 'Kod Parcalari Kutuphanesi',
+    snippetLibraryDesc: 'Tekrar kullanilabilir kod, baslik ve govde parcalari',
+
+    // Team Sync
+    teamSync: 'Takim Senk',
+    teamSyncDesc: 'Koleksiyonlari takim uyeleriyle paylas',
+
+    // Git Sync
+    gitSync: 'Git Senk',
+    gitSyncDesc: 'Koleksiyonlari Git ile surum kontrolu yap',
+
+    // Cloud Monitoring
+    cloudMonitoring: 'Bulut Izleme',
+    cloudMonitoringDesc: 'API calisma suresi ve yanit surelerini izle',
+
+    // API Gateway / Rate Limit
+    apiGateway: 'API Gateway / Hiz Siniri',
+    apiGatewayDesc: 'Hiz sinirlamasi ve gateway davranisini test et',
+
+    // Load Testing
+    loadTesting: 'Yuk Testi',
+    loadTestingDesc: 'Eszamanli kullanicilar ve trafik simule et',
+
+    // SOAP Client
+    soapClient: 'SOAP Istemcisi',
+    soapClientDesc: 'WSDL ile SOAP/XML web servislerini test et',
+
+    // Certificate Pinning
+    certPinning: 'Sertifika Sabitleme',
+    certPinningDesc: 'SSL sertifika parmak izlerini sabitle ve dogrula',
+
+    // API Changelog
+    apiChangelog: 'API Degisiklik Gecmisi',
+    apiChangelogDesc: 'Endpoint degisikliklerini zaman icinde takip et',
+
+    // New features - Wave 2
+    performanceWaterfall: 'Performans Waterfall',
+    performanceWaterfallDesc: 'DNS, TLS, TTFB zamanlama analizi',
+    fakeDataGenerator: 'Sahte Veri Uretici',
+    fakeDataGeneratorDesc: 'Test icin sahte veri uret',
+    securityScanning: 'Guvenlik Tarayici',
+    securityScanningDesc: 'API guvenlik aciklari icin tara',
+    apiGovernance: 'API Yonetisim',
+    apiGovernanceDesc: 'REST en iyi pratiklerini denetle',
+    openApiValidation: 'OpenAPI Dogrulama',
+    openApiValidationDesc: 'OpenAPI/Swagger semasini dogrula',
+    graphqlSubscriptions: 'GraphQL Abonelikler',
+    graphqlSubscriptionsDesc: 'Gercek zamanli GraphQL abonelik istemcisi',
+    annotations: 'Notlar',
+    annotationsDesc: 'Endpointlere yorum ve not ekle',
+    trendAnalytics: 'Trend Analitik',
+    trendAnalyticsDesc: 'API saglik puani ve performans trendleri',
+    visualDiff: 'Gorsel Fark',
+    visualDiffDesc: 'Istek gecmisini gorsel olarak karsilastir',
+    variableEncryption: 'Degisken Sifreleme',
+    variableEncryptionDesc: 'Hassas degiskenleri sifrele',
+    bulkOperations: 'Toplu Islemler',
+    bulkOperationsDesc: 'Endpointlerde toplu bul ve degistir',
+    plugins: 'Eklentiler',
+    pluginsDesc: 'Ozel istek oncesi/sonrasi eklentiler',
+    smartSuggestions: 'Akilli Oneriler',
+    smartSuggestionsDesc: 'Yaygin headerlar, parametreler ve durum kodlari',
+    responseTransform: 'Yanit Donusturme',
+    responseTransformDesc: 'JSON, XML, YAML, CSV arasi donusum',
+    cloudAuth: 'Bulut Kimlik Dogrulama',
+    cloudAuthDesc: 'AWS Sig v4, Azure AD, GCP auth',
+    requestInterceptor: 'Istek Yakalayici',
+    requestInterceptorDesc: 'Istekleri yakala ve degistir',
+    testExecution: 'Test Calistirma',
+    testExecutionDesc: 'Durdurma noktali gelismis test calistirici',
   },
 };

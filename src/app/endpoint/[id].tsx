@@ -29,6 +29,7 @@ import { tryValidateSchema } from '../../utils/schemaValidator';
 import JsonHighlight from '../../components/JsonHighlight';
 import { Share } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Linking from 'expo-linking';
 import { runScript, ScriptContext } from '../../utils/scriptEngine';
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -42,11 +43,28 @@ const ASSERTION_TYPES = [
 ];
 
 const OAUTH2_GRANT_TYPES: { value: OAuth2GrantType; label: string }[] = [
-  { value: 'authorization_code', label: 'Authorization Code' },
+  { value: 'authorization_code', label: 'Auth Code' },
   { value: 'client_credentials', label: 'Client Credentials' },
   { value: 'password', label: 'Password' },
   { value: 'implicit', label: 'Implicit' },
 ];
+
+// PKCE helpers
+function generateCodeVerifier(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  let result = '';
+  for (let i = 0; i < 128; i++) result += chars[Math.floor(Math.random() * chars.length)];
+  return result;
+}
+
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  // SHA-256 + base64url
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  const base64 = btoa(String.fromCharCode(...new Uint8Array(hash)));
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
 export default function EndpointDetailScreen() {
   const { colors, isDark } = useTheme();
@@ -104,8 +122,14 @@ export default function EndpointDetailScreen() {
   const [scriptConsole, setScriptConsole] = useState<string[]>([]);
   const [scriptTestResults, setScriptTestResults] = useState<{ name: string; passed: boolean; error?: string }[]>([]);
   const [error, setError] = useState('');
+  const [uploadProgress, setUploadProgress] = useState<{ phase: string; elapsed: number } | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'headers' | 'body' | 'auth' | 'pre-req' | 'post-req' | 'assertions' | 'graphql'>('headers');
+  const [notes, setNotes] = useState(endpoint?.notes || '');
+  const [requestTimeout, setRequestTimeout] = useState(String(endpoint?.requestSettings?.timeout || ''));
+  const [followRedirects, setFollowRedirects] = useState(endpoint?.requestSettings?.followRedirects !== false);
+  const [maxRedirects, setMaxRedirects] = useState(String(endpoint?.requestSettings?.maxRedirects || '10'));
+
+  const [activeTab, setActiveTab] = useState<'headers' | 'body' | 'auth' | 'pre-req' | 'post-req' | 'assertions' | 'graphql' | 'settings' | 'notes'>('headers');
   const [responseTab, setResponseTab] = useState<'body' | 'headers' | 'diff' | 'tests' | 'console'>('body');
   const [showCurlModal, setShowCurlModal] = useState(false);
   const [curlInput, setCurlInput] = useState('');
@@ -150,7 +174,7 @@ export default function EndpointDetailScreen() {
     // Save changes
     if (endpoint) {
       saveVersion(endpoint);
-      updateEndpoint(endpoint.id, { url, method, body, bodyType, formData, headers, assertions, auth, preRequestScript, postRequestScript, isGraphQL, graphqlQuery, graphqlVariables });
+      updateEndpoint(endpoint.id, { url, method, body, bodyType, formData, headers, assertions, auth, preRequestScript, postRequestScript, isGraphQL, graphqlQuery, graphqlVariables, notes, requestSettings: { timeout: requestTimeout ? parseInt(requestTimeout) : undefined, followRedirects, maxRedirects: parseInt(maxRedirects) || 10 } });
     }
 
     // Build script context
@@ -223,6 +247,10 @@ export default function EndpointDetailScreen() {
     }
 
     const start = Date.now();
+    setUploadProgress({ phase: 'Connecting...', elapsed: 0 });
+    const progressTimer = setInterval(() => {
+      setUploadProgress((prev) => prev ? { ...prev, elapsed: Date.now() - start } : null);
+    }, 100);
     try {
       const fetchOpts: RequestInit = { method: isGraphQL ? 'POST' : method, headers: headerObj };
       if (isGraphQL) {
@@ -243,13 +271,18 @@ export default function EndpointDetailScreen() {
             .join('&');
           fetchOpts.body = params;
           headerObj['Content-Type'] = 'application/x-www-form-urlencoded';
+        } else if (bodyType === 'xml' && resolvedBody.trim()) {
+          fetchOpts.body = resolvedBody;
+          if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/xml';
         } else if (resolvedBody.trim()) {
           fetchOpts.body = resolvedBody;
           if (!headerObj['Content-Type']) headerObj['Content-Type'] = 'application/json';
         }
       }
 
+      setUploadProgress({ phase: 'Sending request...', elapsed: Date.now() - start });
       const res = await fetch(resolvedUrl, fetchOpts);
+      setUploadProgress({ phase: 'Reading response...', elapsed: Date.now() - start });
       const elapsed = Date.now() - start;
       const resBody = await res.text();
 
@@ -344,6 +377,8 @@ export default function EndpointDetailScreen() {
         requestBody: resolvedBody || undefined,
       });
     }
+    clearInterval(progressTimer);
+    setUploadProgress(null);
     setLoading(false);
   }, [url, method, body, headers, assertions, endpoint, response, resolveVariables]);
 
@@ -462,6 +497,18 @@ export default function EndpointDetailScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Upload Progress */}
+          {uploadProgress && (
+            <View style={[styles.progressBar, { backgroundColor: colors.primary + '15' }]}>
+              <View style={styles.progressPulse}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={[styles.progressText, { color: colors.primary }]}>
+                  {uploadProgress.phase} ({(uploadProgress.elapsed / 1000).toFixed(1)}s)
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Action Row */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 10 }}>
             <View style={styles.actionRow}>
@@ -539,7 +586,7 @@ export default function EndpointDetailScreen() {
           {/* Request Tabs */}
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
             <View style={[styles.tabBar, { marginTop: 0 }]}>
-              {(['headers', 'body', 'auth', 'pre-req', 'post-req', ...(isGraphQL ? ['graphql' as const] : []), 'assertions'] as const).map((tab) => (
+              {(['headers', 'body', 'auth', 'pre-req', 'post-req', ...(isGraphQL ? ['graphql' as const] : []), 'assertions', 'settings', 'notes'] as const).map((tab) => (
                 <TouchableOpacity
                   key={tab}
                   onPress={() => setActiveTab(tab as any)}
@@ -595,19 +642,61 @@ export default function EndpointDetailScreen() {
               {/* Body Type Selector */}
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
                 <View style={{ flexDirection: 'row', gap: 6 }}>
-                  {(['none', 'json', 'form-data', 'x-www-form-urlencoded', 'raw'] as BodyType[]).map((bt) => (
+                  {(['none', 'json', 'form-data', 'x-www-form-urlencoded', 'raw', 'xml', 'binary'] as BodyType[]).map((bt) => (
                     <TouchableOpacity
                       key={bt}
                       onPress={() => setBodyType(bt)}
                       style={[styles.addAssertionBtn, { backgroundColor: bodyType === bt ? colors.primary + '25' : colors.background }]}
                     >
                       <Text style={[styles.addAssertionText, { color: bodyType === bt ? colors.primary : colors.textSecondary }]}>
-                        {bt === 'none' ? 'None' : bt === 'json' ? 'JSON' : bt === 'form-data' ? 'Form Data' : bt === 'x-www-form-urlencoded' ? 'URL Encoded' : 'Raw'}
+                        {bt === 'none' ? 'None' : bt === 'json' ? 'JSON' : bt === 'form-data' ? 'Form Data' : bt === 'x-www-form-urlencoded' ? 'URL Encoded' : bt === 'xml' ? 'XML' : bt === 'binary' ? 'Binary' : 'Raw'}
                       </Text>
                     </TouchableOpacity>
                   ))}
                 </View>
               </ScrollView>
+
+              {/* XML body */}
+              {bodyType === 'xml' && (
+                <TextInput
+                  style={[styles.bodyEditor, { backgroundColor: colors.background, color: colors.text, marginTop: 0 }]}
+                  value={body}
+                  onChangeText={setBody}
+                  placeholder={'<?xml version="1.0" encoding="UTF-8"?>\n<root>\n  <element>value</element>\n</root>'}
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  textAlignVertical="top"
+                />
+              )}
+
+              {/* Binary body */}
+              {bodyType === 'binary' && (
+                <View style={{ gap: 8 }}>
+                  {body ? (
+                    <View style={{ backgroundColor: '#3FB95012', borderRadius: 8, padding: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <MaterialCommunityIcons name="file-outline" size={20} color="#3FB950" />
+                      <Text style={{ color: '#3FB950', fontSize: 13, fontWeight: '600', flex: 1 }} numberOfLines={1}>{body}</Text>
+                      <TouchableOpacity onPress={() => setBody('')}>
+                        <MaterialCommunityIcons name="close-circle" size={18} color={colors.textTertiary} />
+                      </TouchableOpacity>
+                    </View>
+                  ) : null}
+                  <TouchableOpacity
+                    onPress={async () => {
+                      try {
+                        const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
+                        if (!result.canceled && result.assets?.[0]) {
+                          setBody(result.assets[0].uri);
+                        }
+                      } catch {}
+                    }}
+                    style={[styles.addAssertionBtn, { backgroundColor: '#FF950018', paddingVertical: 12, justifyContent: 'center', gap: 8 }]}
+                  >
+                    <MaterialCommunityIcons name="file-upload-outline" size={18} color="#FF9500" />
+                    <Text style={{ color: '#FF9500', fontSize: 14, fontWeight: '600' }}>Select File</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {/* JSON / Raw body */}
               {(bodyType === 'json' || bodyType === 'raw') && (
@@ -876,11 +965,85 @@ export default function EndpointDetailScreen() {
                     </>
                   )}
 
+                  {/* Redirect URI */}
+                  {(auth.oauth2?.grantType === 'authorization_code' || auth.oauth2?.grantType === 'implicit') && (
+                    <TextInput
+                      style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                      value={auth.oauth2?.redirectUri || ''}
+                      onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), redirectUri: v } })}
+                      placeholder="Redirect URI (e.g. devtoolbox://oauth)"
+                      placeholderTextColor={colors.textTertiary}
+                      autoCapitalize="none"
+                    />
+                  )}
+
+                  {/* PKCE Toggle */}
+                  {auth.oauth2?.grantType === 'authorization_code' && (
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <Text style={{ color: colors.textSecondary, fontSize: 13, fontWeight: '600' }}>PKCE (S256)</Text>
+                      <TouchableOpacity
+                        onPress={() => setAuth({ ...auth, oauth2: { ...getOAuth2(), usePKCE: !getOAuth2().usePKCE } })}
+                        style={[styles.toggleTrack, { backgroundColor: getOAuth2().usePKCE ? colors.primary : colors.textTertiary + '40' }]}
+                      >
+                        <View style={[styles.toggleThumb, { transform: [{ translateX: getOAuth2().usePKCE ? 18 : 2 }] }]} />
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  {/* Authorization Code Input */}
+                  {auth.oauth2?.grantType === 'authorization_code' && (
+                    <>
+                      <TouchableOpacity
+                        style={[styles.addAssertionBtn, { backgroundColor: '#FF950020', paddingVertical: 10, alignItems: 'center' }]}
+                        onPress={async () => {
+                          const o = getOAuth2();
+                          if (!o.authUrl) { Alert.alert('Error', 'Authorization URL is required'); return; }
+                          const verifier = generateCodeVerifier();
+                          const params = new URLSearchParams({
+                            response_type: 'code',
+                            client_id: resolveVariables(o.clientId),
+                            redirect_uri: resolveVariables(o.redirectUri || 'devtoolbox://oauth'),
+                            ...(o.scope ? { scope: resolveVariables(o.scope) } : {}),
+                          });
+                          if (o.usePKCE) {
+                            try {
+                              const challenge = await generateCodeChallenge(verifier);
+                              params.set('code_challenge', challenge);
+                              params.set('code_challenge_method', 'S256');
+                              setAuth({ ...auth, oauth2: { ...o, codeVerifier: verifier } });
+                            } catch {
+                              params.set('code_challenge', verifier);
+                              params.set('code_challenge_method', 'plain');
+                              setAuth({ ...auth, oauth2: { ...o, codeVerifier: verifier } });
+                            }
+                          }
+                          const authUrl = `${resolveVariables(o.authUrl)}?${params.toString()}`;
+                          Linking.openURL(authUrl);
+                        }}
+                      >
+                        <Text style={{ color: '#FF9500', fontWeight: '700' }}>Open Authorization URL</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={[styles.assertionInput, { color: colors.text, backgroundColor: colors.background }]}
+                        value={auth.oauth2?.authorizationCode || ''}
+                        onChangeText={(v) => setAuth({ ...auth, oauth2: { ...getOAuth2(), authorizationCode: v } })}
+                        placeholder="Paste authorization code here..."
+                        placeholderTextColor={colors.textTertiary}
+                        autoCapitalize="none"
+                      />
+                    </>
+                  )}
+
                   {/* Current Token */}
                   {auth.oauth2?.accessToken && (
                     <View style={{ backgroundColor: '#3FB95012', borderRadius: 8, padding: 10 }}>
                       <Text style={{ color: '#3FB950', fontSize: 12, fontWeight: '700', marginBottom: 4 }}>Active Token</Text>
                       <Text style={{ color: colors.text, fontSize: 11, fontFamily: 'monospace' }} numberOfLines={2}>{auth.oauth2.accessToken}</Text>
+                      {auth.oauth2.tokenExpiry && (
+                        <Text style={{ color: colors.textTertiary, fontSize: 10, marginTop: 4 }}>
+                          Expires: {new Date(auth.oauth2.tokenExpiry).toLocaleString()}
+                        </Text>
+                      )}
                     </View>
                   )}
 
@@ -891,8 +1054,10 @@ export default function EndpointDetailScreen() {
                       try {
                         const token = await fetchOAuth2Token(getOAuth2(), resolveVariables);
                         if (token) {
-                          setAuth({ ...auth, oauth2: { ...getOAuth2(), accessToken: token, tokenExpiry: Date.now() + 3600000 } });
+                          setAuth({ ...auth, oauth2: { ...getOAuth2(), accessToken: token, tokenExpiry: Date.now() + 3600000, authorizationCode: '' } });
                           Alert.alert('Success', 'Token fetched successfully');
+                        } else {
+                          Alert.alert('Info', 'Could not fetch token. For Authorization Code flow, first get the code via the authorization URL.');
                         }
                       } catch (err: any) {
                         Alert.alert('Error', err.message);
@@ -1022,6 +1187,61 @@ export default function EndpointDetailScreen() {
                   ))}
                 </View>
               </ScrollView>
+            </View>
+          )}
+
+          {/* Settings Tab */}
+          {activeTab === 'settings' && (
+            <View style={[styles.sectionCard, { backgroundColor: inputBg }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('requestTimeout') || 'Request Timeout (ms)'}</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
+                value={requestTimeout}
+                onChangeText={setRequestTimeout}
+                placeholder="0 (no timeout)"
+                placeholderTextColor={colors.textTertiary}
+                keyboardType="numeric"
+              />
+
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+                <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginBottom: 0 }]}>{t('followRedirects') || 'Follow Redirects'}</Text>
+                <TouchableOpacity
+                  onPress={() => setFollowRedirects(!followRedirects)}
+                  style={[styles.toggleTrack, { backgroundColor: followRedirects ? colors.primary : colors.textTertiary + '40' }]}
+                >
+                  <View style={[styles.toggleThumb, { transform: [{ translateX: followRedirects ? 18 : 2 }] }]} />
+                </TouchableOpacity>
+              </View>
+
+              {followRedirects && (
+                <>
+                  <Text style={[styles.sectionLabel, { color: colors.textSecondary, marginTop: 16 }]}>{t('maxRedirects') || 'Max Redirects'}</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
+                    value={maxRedirects}
+                    onChangeText={setMaxRedirects}
+                    placeholder="10"
+                    placeholderTextColor={colors.textTertiary}
+                    keyboardType="numeric"
+                  />
+                </>
+              )}
+            </View>
+          )}
+
+          {/* Notes Tab */}
+          {activeTab === 'notes' && (
+            <View style={[styles.sectionCard, { backgroundColor: inputBg }]}>
+              <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>{t('endpointNotes') || 'Notes'}</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: colors.background, color: colors.text, minHeight: 160, textAlignVertical: 'top' }]}
+                value={notes}
+                onChangeText={setNotes}
+                placeholder={t('notesPlaceholder') || 'Add notes about this endpoint...'}
+                placeholderTextColor={colors.textTertiary}
+                multiline
+                numberOfLines={8}
+              />
             </View>
           )}
 
@@ -1312,11 +1532,18 @@ async function fetchOAuth2Token(
       if (config.scope) params.set('scope', resolve(config.scope));
       break;
     case 'authorization_code':
-      if (config.refreshToken) {
+      if (config.authorizationCode) {
+        params.set('grant_type', 'authorization_code');
+        params.set('code', resolve(config.authorizationCode));
+        params.set('redirect_uri', resolve(config.redirectUri || 'devtoolbox://oauth'));
+        if (config.usePKCE && config.codeVerifier) {
+          params.set('code_verifier', config.codeVerifier);
+        }
+      } else if (config.refreshToken) {
         params.set('grant_type', 'refresh_token');
         params.set('refresh_token', resolve(config.refreshToken));
       } else {
-        return null; // Needs browser redirect flow
+        return null;
       }
       params.set('client_id', resolve(config.clientId));
       if (config.clientSecret) params.set('client_secret', resolve(config.clientSecret));
@@ -1418,4 +1645,14 @@ const styles = StyleSheet.create({
   },
   modalBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 12, marginTop: 12 },
   modalBtnText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
+
+  progressBar: { borderRadius: 10, padding: 10, marginTop: 8 },
+  progressPulse: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progressText: { fontSize: 13, fontWeight: '600' },
+
+  sectionCard: { borderRadius: 12, padding: 14, marginTop: 8 },
+  sectionLabel: { fontSize: 14, fontWeight: '600', marginBottom: 8 },
+  input: { borderRadius: 10, padding: 12, fontSize: 14 },
+  toggleTrack: { width: 44, height: 26, borderRadius: 13, justifyContent: 'center' },
+  toggleThumb: { width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF' },
 });

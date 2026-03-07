@@ -17,7 +17,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useApiStore } from '../stores/apiStore';
 import { useEnvironmentStore } from '../stores/environmentStore';
 import { HttpMethod, METHOD_COLORS } from '../types/api';
-import { JsonHighlight } from '../components/JsonHighlight';
+import JsonHighlight from '../components/JsonHighlight';
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 

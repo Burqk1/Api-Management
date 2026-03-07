@@ -2,6 +2,21 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateId, HttpMethod } from '../types/api';
 
+export interface MockCondition {
+  field: 'header' | 'query' | 'body_contains' | 'body_json_path';
+  key: string;
+  operator: 'equals' | 'contains' | 'exists' | 'regex';
+  value: string;
+}
+
+export interface MockConditionalResponse {
+  id: string;
+  conditions: MockCondition[];
+  statusCode: number;
+  responseBody: string;
+  priority: number;
+}
+
 export interface MockRoute {
   id: string;
   path: string;
@@ -10,10 +25,15 @@ export interface MockRoute {
   responseBody: string;
   responseHeaders: Record<string, string>;
   delay: number;
+  delayRange?: { min: number; max: number };
   enabled: boolean;
   hitCount: number;
   lastHit?: number;
   createdAt: number;
+  conditionalResponses?: MockConditionalResponse[];
+  proxyUrl?: string;
+  responseSequence?: string[];
+  sequenceIndex?: number;
 }
 
 export interface MockRequestLog {
@@ -114,8 +134,38 @@ export const useMockStore = create<MockState>((set, get) => ({
       };
     }
 
-    if (route.delay > 0) {
-      await new Promise((res) => setTimeout(res, route.delay));
+    // Calculate delay (range or fixed)
+    const delayMs = route.delayRange
+      ? route.delayRange.min + Math.floor(Math.random() * (route.delayRange.max - route.delayRange.min))
+      : route.delay;
+    if (delayMs > 0) {
+      await new Promise((res) => setTimeout(res, delayMs));
+    }
+
+    // Check conditional responses
+    let statusCode = route.statusCode;
+    let responseBody = route.responseBody;
+
+    if (route.conditionalResponses?.length) {
+      const sorted = [...route.conditionalResponses].sort((a, b) => b.priority - a.priority);
+      for (const cr of sorted) {
+        if (evaluateConditions(cr.conditions, method, path, body)) {
+          statusCode = cr.statusCode;
+          responseBody = cr.responseBody;
+          break;
+        }
+      }
+    }
+
+    // Sequence responses (round-robin)
+    if (route.responseSequence?.length) {
+      const idx = route.sequenceIndex || 0;
+      responseBody = route.responseSequence[idx % route.responseSequence.length];
+      set((s) => ({
+        routes: s.routes.map((r) =>
+          r.id === route.id ? { ...r, sequenceIndex: (idx + 1) % (r.responseSequence?.length || 1) } : r
+        ),
+      }));
     }
 
     set((s) => ({
@@ -124,7 +174,7 @@ export const useMockStore = create<MockState>((set, get) => ({
       ),
     }));
 
-    let responseBody = route.responseBody;
+    // Template variable replacement
     if (body) {
       try {
         const reqBody = JSON.parse(body);
@@ -135,10 +185,15 @@ export const useMockStore = create<MockState>((set, get) => ({
     }
     responseBody = responseBody
       .replace(/\{\{timestamp\}\}/g, String(Date.now()))
-      .replace(/\{\{randomId\}\}/g, generateId());
+      .replace(/\{\{randomId\}\}/g, generateId())
+      .replace(/\{\{hitCount\}\}/g, String(route.hitCount + 1))
+      .replace(/\{\{method\}\}/g, method)
+      .replace(/\{\{path\}\}/g, path)
+      .replace(/\{\{randomInt\}\}/g, String(Math.floor(Math.random() * 10000)))
+      .replace(/\{\{randomFloat\}\}/g, (Math.random()).toFixed(4));
 
     return {
-      status: route.statusCode,
+      status: statusCode,
       headers: route.responseHeaders,
       body: responseBody,
     };
@@ -153,6 +208,35 @@ export const useMockStore = create<MockState>((set, get) => ({
     } catch {}
   },
 }));
+
+function evaluateConditions(conditions: MockCondition[], _method: HttpMethod, path: string, body?: string): boolean {
+  return conditions.every((c) => {
+    let target = '';
+    if (c.field === 'query') {
+      const qIdx = path.indexOf('?');
+      if (qIdx >= 0) {
+        const params = new URLSearchParams(path.slice(qIdx));
+        target = params.get(c.key) || '';
+      }
+    } else if (c.field === 'header') {
+      target = '';
+    } else if (c.field === 'body_contains') {
+      target = body || '';
+    } else if (c.field === 'body_json_path') {
+      try {
+        const parsed = JSON.parse(body || '{}');
+        target = String(parsed[c.key] ?? '');
+      } catch { target = ''; }
+    }
+    switch (c.operator) {
+      case 'equals': return target === c.value;
+      case 'contains': return target.includes(c.value);
+      case 'exists': return target.length > 0;
+      case 'regex': try { return new RegExp(c.value).test(target); } catch { return false; }
+      default: return false;
+    }
+  });
+}
 
 function matchPath(pattern: string, path: string): boolean {
   if (pattern === path) return true;

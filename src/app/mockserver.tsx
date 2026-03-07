@@ -30,25 +30,61 @@ export default function MockServerScreen() {
   const [statusCode, setStatusCode] = useState('200');
   const [resBody, setResBody] = useState('{"message": "Hello from mock"}');
   const [delay, setDelay] = useState('0');
+  const [delayMax, setDelayMax] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [condField, setCondField] = useState<'query' | 'body_contains' | 'body_json_path'>('query');
+  const [condKey, setCondKey] = useState('');
+  const [condOperator, setCondOperator] = useState<'equals' | 'contains' | 'exists' | 'regex'>('equals');
+  const [condValue, setCondValue] = useState('');
+  const [condStatus, setCondStatus] = useState('200');
+  const [condBody, setCondBody] = useState('{"conditional": true}');
+  const [sequenceMode, setSequenceMode] = useState(false);
+  const [sequenceItems, setSequenceItems] = useState('');
+  const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
 
   const inputBg = isDark ? colors.surface : colors.card;
 
   const handleAdd = () => {
     if (!path.trim()) return;
+    const delayMin = parseInt(delay) || 0;
+    const delayMaxVal = parseInt(delayMax) || 0;
+    const conditionalResponses: import('../stores/mockStore').MockConditionalResponse[] = [];
+    if (condKey.trim() && condBody.trim()) {
+      conditionalResponses.push({
+        id: Date.now().toString(),
+        conditions: [{ field: condField, key: condKey, operator: condOperator, value: condValue }],
+        statusCode: parseInt(condStatus) || 200,
+        responseBody: condBody,
+        priority: 1,
+      });
+    }
+    const seqItems = sequenceMode && sequenceItems.trim()
+      ? sequenceItems.split('\n---\n').filter(Boolean)
+      : undefined;
     addRoute({
       path: path.trim(),
       method,
       statusCode: parseInt(statusCode) || 200,
       responseBody: resBody,
       responseHeaders: { 'Content-Type': 'application/json' },
-      delay: parseInt(delay) || 0,
+      delay: delayMin,
+      delayRange: delayMaxVal > delayMin ? { min: delayMin, max: delayMaxVal } : undefined,
       enabled: true,
+      conditionalResponses: conditionalResponses.length > 0 ? conditionalResponses : undefined,
+      responseSequence: seqItems,
+      sequenceIndex: 0,
     });
     setShowAdd(false);
     setPath('/api/example');
     setResBody('{"message": "Hello from mock"}');
     setStatusCode('200');
     setDelay('0');
+    setDelayMax('');
+    setCondKey('');
+    setCondValue('');
+    setCondBody('{"conditional": true}');
+    setSequenceMode(false);
+    setSequenceItems('');
   };
 
   return (
@@ -141,6 +177,136 @@ export default function MockServerScreen() {
                 multiline
                 textAlignVertical="top"
               />
+
+              {/* Advanced Toggle */}
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 }}
+                onPress={() => setShowAdvanced(!showAdvanced)}
+              >
+                <MaterialCommunityIcons name={showAdvanced ? 'chevron-down' : 'chevron-right'} size={18} color={colors.primary} />
+                <Text style={{ color: colors.primary, fontSize: 13, fontWeight: '600' }}>Advanced Options</Text>
+              </TouchableOpacity>
+
+              {showAdvanced && (
+                <View style={{ gap: 8 }}>
+                  {/* Delay Range */}
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>Delay Range (ms)</Text>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
+                      value={delay}
+                      onChangeText={setDelay}
+                      placeholder="Min"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
+                      value={delayMax}
+                      onChangeText={setDelayMax}
+                      placeholder="Max (optional)"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  {/* Conditional Response */}
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginTop: 4 }}>Conditional Response</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {(['query', 'body_contains', 'body_json_path'] as const).map((f) => (
+                        <TouchableOpacity
+                          key={f}
+                          onPress={() => setCondField(f)}
+                          style={[styles.methodChip, { backgroundColor: condField === f ? colors.primary + '20' : colors.background }]}
+                        >
+                          <Text style={{ color: condField === f ? colors.primary : colors.textSecondary, fontSize: 11, fontWeight: '700' }}>{f}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
+                      value={condKey}
+                      onChangeText={setCondKey}
+                      placeholder="Key (e.g. status)"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
+                      value={condValue}
+                      onChangeText={setCondValue}
+                      placeholder="Value"
+                      placeholderTextColor={colors.textTertiary}
+                    />
+                  </View>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {(['equals', 'contains', 'exists', 'regex'] as const).map((op) => (
+                        <TouchableOpacity
+                          key={op}
+                          onPress={() => setCondOperator(op)}
+                          style={[styles.methodChip, { backgroundColor: condOperator === op ? '#D2992220' : colors.background }]}
+                        >
+                          <Text style={{ color: condOperator === op ? '#D29922' : colors.textSecondary, fontSize: 11, fontWeight: '700' }}>{op}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: colors.background, color: colors.text, flex: 1 }]}
+                      value={condStatus}
+                      onChangeText={setCondStatus}
+                      placeholder="Status"
+                      placeholderTextColor={colors.textTertiary}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <TextInput
+                    style={[styles.bodyInput, { backgroundColor: colors.background, color: colors.text, minHeight: 60 }]}
+                    value={condBody}
+                    onChangeText={setCondBody}
+                    placeholder="Conditional response body"
+                    placeholderTextColor={colors.textTertiary}
+                    multiline
+                    textAlignVertical="top"
+                  />
+
+                  {/* Sequence Mode */}
+                  <TouchableOpacity
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}
+                    onPress={() => setSequenceMode(!sequenceMode)}
+                  >
+                    <MaterialCommunityIcons
+                      name={sequenceMode ? 'checkbox-marked' : 'checkbox-blank-outline'}
+                      size={20}
+                      color={sequenceMode ? colors.primary : colors.textTertiary}
+                    />
+                    <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>Sequence Mode (round-robin responses)</Text>
+                  </TouchableOpacity>
+                  {sequenceMode && (
+                    <TextInput
+                      style={[styles.bodyInput, { backgroundColor: colors.background, color: colors.text, minHeight: 80 }]}
+                      value={sequenceItems}
+                      onChangeText={setSequenceItems}
+                      placeholder={'{"seq": 1}\n---\n{"seq": 2}\n---\n{"seq": 3}'}
+                      placeholderTextColor={colors.textTertiary}
+                      multiline
+                      textAlignVertical="top"
+                    />
+                  )}
+
+                  {/* Template Variables Info */}
+                  <View style={{ backgroundColor: colors.background, borderRadius: 8, padding: 10 }}>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, lineHeight: 16 }}>
+                      Template vars: {'{{timestamp}}'} {'{{randomId}}'} {'{{hitCount}}'} {'{{method}}'} {'{{path}}'} {'{{randomInt}}'} {'{{randomFloat}}'} {'{{request.body.fieldName}}'}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <TouchableOpacity
                   style={[styles.formBtn, { backgroundColor: colors.systemGray5, flex: 1 }]}
@@ -166,7 +332,12 @@ export default function MockServerScreen() {
           )}
 
           {routes.map((route) => (
-            <View key={route.id} style={[styles.routeCard, { backgroundColor: inputBg, opacity: route.enabled ? 1 : 0.5 }]}>
+            <TouchableOpacity
+              key={route.id}
+              activeOpacity={0.8}
+              onPress={() => setExpandedRoute(expandedRoute === route.id ? null : route.id)}
+              style={[styles.routeCard, { backgroundColor: inputBg, opacity: route.enabled ? 1 : 0.5 }]}
+            >
               <View style={styles.routeHeader}>
                 <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[route.method] + '20' }]}>
                   <Text style={[styles.methodText, { color: METHOD_COLORS[route.method] }]}>{route.method}</Text>
@@ -174,6 +345,45 @@ export default function MockServerScreen() {
                 <Text style={[styles.routePath, { color: colors.text }]} numberOfLines={1}>{route.path}</Text>
                 <Text style={[styles.routeStatus, { color: colors.textSecondary }]}>{route.statusCode}</Text>
               </View>
+              {/* Badges row */}
+              <View style={{ flexDirection: 'row', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
+                {route.hitCount > 0 && (
+                  <View style={{ backgroundColor: '#3FB95015', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ color: '#3FB950', fontSize: 10, fontWeight: '700' }}>{route.hitCount} hits</Text>
+                  </View>
+                )}
+                {route.delay > 0 && (
+                  <View style={{ backgroundColor: '#D2992215', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ color: '#D29922', fontSize: 10, fontWeight: '700' }}>
+                      {route.delayRange ? `${route.delay}-${route.delayRange.max}ms` : `${route.delay}ms`}
+                    </Text>
+                  </View>
+                )}
+                {(route.conditionalResponses?.length ?? 0) > 0 && (
+                  <View style={{ backgroundColor: '#BC8CFF15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ color: '#BC8CFF', fontSize: 10, fontWeight: '700' }}>{route.conditionalResponses!.length} conditions</Text>
+                  </View>
+                )}
+                {(route.responseSequence?.length ?? 0) > 0 && (
+                  <View style={{ backgroundColor: '#58A6FF15', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                    <Text style={{ color: '#58A6FF', fontSize: 10, fontWeight: '700' }}>seq [{route.sequenceIndex || 0}/{route.responseSequence!.length}]</Text>
+                  </View>
+                )}
+              </View>
+              {/* Expanded details */}
+              {expandedRoute === route.id && (
+                <View style={{ marginTop: 8, gap: 4 }}>
+                  <Text style={{ color: colors.textTertiary, fontSize: 11, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }} numberOfLines={4}>{route.responseBody}</Text>
+                  {route.conditionalResponses?.map((cr) => (
+                    <View key={cr.id} style={{ backgroundColor: colors.background, borderRadius: 6, padding: 6, marginTop: 4 }}>
+                      <Text style={{ color: '#BC8CFF', fontSize: 10, fontWeight: '700' }}>
+                        IF {cr.conditions.map((c) => `${c.field}.${c.key} ${c.operator} "${c.value}"`).join(' AND ')}
+                      </Text>
+                      <Text style={{ color: colors.textSecondary, fontSize: 10 }}>THEN {cr.statusCode}: {cr.responseBody.slice(0, 50)}...</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               <View style={styles.routeActions}>
                 <TouchableOpacity onPress={() => updateRoute(route.id, { enabled: !route.enabled })}>
                   <MaterialCommunityIcons
@@ -191,7 +401,7 @@ export default function MockServerScreen() {
                   <MaterialCommunityIcons name="trash-can-outline" size={18} color="#FF6961" />
                 </TouchableOpacity>
               </View>
-            </View>
+            </TouchableOpacity>
           ))}
         </ScrollView>
       </SafeAreaView>

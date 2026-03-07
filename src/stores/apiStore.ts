@@ -61,7 +61,7 @@ interface ApiState {
   initialize: () => Promise<void>;
 }
 
-const MAX_LOGS = 500;
+const MAX_LOGS = 5000; // Plan bazlı limit costGuardStore'da kontrol edilir
 
 const persist = (state: ApiState) => {
   AsyncStorage.setItem('api_collections', JSON.stringify(state.collections));

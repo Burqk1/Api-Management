@@ -18,6 +18,7 @@ import { useLanguageStore } from '../stores/languageStore';
 import { useApiStore } from '../stores/apiStore';
 import { useAuthStore } from '../stores/authStore';
 import { useSubscriptionStore } from '../stores/subscriptionStore';
+import { useCostGuardStore, simpleHash } from '../stores/costGuardStore';
 
 const PROMPTS = [
   { key: 'analyzeError', icon: 'bug-outline', color: '#FF6961' },
@@ -35,12 +36,14 @@ export default function AIAnalysisScreen() {
   const apiKeys = useApiStore((s) => s.apiKeys);
   const isPro = useAuthStore((s) => s.isPro);
   const requiresPro = useSubscriptionStore((s) => s.requiresPro);
+  const { canUseAI, getRemainingAIRequests, getAIDailyLimit, incrementAIUsage, getCachedResponse, setCachedResponse, getOptimalModel } = useCostGuardStore();
 
   const log = callLogs.find((l) => l.id === params.logId);
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
+  const [fromCache, setFromCache] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
   const cardBg = isDark ? colors.surface : colors.card;
@@ -58,17 +61,23 @@ export default function AIAnalysisScreen() {
   const callAI = async (promptType: string) => {
     if (requiresPro('aiAnalysis') && !isPro()) return;
 
+    // Rate limit kontrolü
+    if (!canUseAI()) {
+      const limit = getAIDailyLimit();
+      setResult(`Günlük AI limitinize ulaştınız (${limit} istek/gün). Yarın tekrar deneyebilirsiniz veya planınızı yükseltin.`);
+      return;
+    }
+
     const apiKey = getApiKey();
     if (!apiKey) {
       setResult(t('addClaudeKeyHint'));
       return;
     }
 
-    setLoading(true);
-    setResult('');
+    setFromCache(false);
 
     const context = log
-      ? `API Request:\n${log.method} ${log.url}\nStatus: ${log.statusCode}\nResponse Time: ${log.responseTime}ms\nResponse Body (first 3000 chars):\n${(log.responseBody || '').slice(0, 3000)}\n${log.errorMessage ? `Error: ${log.errorMessage}` : ''}`
+      ? `API Request:\n${log.method} ${log.url}\nStatus: ${log.statusCode}\nResponse Time: ${log.responseTime}ms\nResponse Body (first 2000 chars):\n${(log.responseBody || '').slice(0, 2000)}\n${log.errorMessage ? `Error: ${log.errorMessage}` : ''}`
       : 'No specific API request context provided.';
 
     const systemMsg = 'You are an API expert assistant inside a mobile API testing tool. Be concise and actionable. Use markdown formatting.';
@@ -88,6 +97,21 @@ export default function AIAnalysisScreen() {
       userMsg = `${context}\n\nSuggest performance optimizations for this API call. Consider caching, payload size, query optimization.`;
     }
 
+    // Cache kontrolü — aynı sorgu daha önce sorulduysa API'ye gitme
+    const promptHash = simpleHash(promptType + userMsg);
+    const cached = getCachedResponse(promptHash);
+    if (cached) {
+      setResult(cached);
+      setFromCache(true);
+      return;
+    }
+
+    setLoading(true);
+    setResult('');
+
+    // Model optimizasyonu — basit sorgularda ucuz model kullan
+    const { model, maxTokens } = getOptimalModel(promptType);
+
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -97,8 +121,8 @@ export default function AIAnalysisScreen() {
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
+          model,
+          max_tokens: maxTokens,
           system: systemMsg,
           messages: [{ role: 'user', content: userMsg }],
         }),
@@ -106,7 +130,12 @@ export default function AIAnalysisScreen() {
 
       const data = await res.json();
       if (data.content?.[0]?.text) {
-        setResult(data.content[0].text);
+        const text = data.content[0].text;
+        setResult(text);
+        // Yanıtı cache'le ve kullanımı say
+        setCachedResponse(promptHash, text, model);
+        const tokensUsed = (data.usage?.input_tokens || 0) + (data.usage?.output_tokens || 0);
+        incrementAIUsage(tokensUsed || 500);
       } else if (data.error) {
         setResult(`Error: ${data.error.message}`);
       }
@@ -137,6 +166,20 @@ export default function AIAnalysisScreen() {
               </View>
             </View>
           )}
+
+          {/* AI Kullanım Durumu */}
+          <View style={[styles.card, { backgroundColor: cardBg, flexDirection: 'row', alignItems: 'center', gap: 10 }]}>
+            <MaterialCommunityIcons name="robot-outline" size={20} color={colors.primary} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.text, fontSize: 13, fontWeight: '600' }}>
+                {getRemainingAIRequests()}/{getAIDailyLimit()} istek kaldı
+              </Text>
+              <View style={{ height: 4, borderRadius: 2, backgroundColor: isDark ? colors.systemGray5 : '#E5E5EA', marginTop: 4 }}>
+                <View style={{ height: '100%', borderRadius: 2, backgroundColor: getRemainingAIRequests() > 3 ? '#3FB950' : getRemainingAIRequests() > 0 ? '#D29922' : '#FF6961', width: `${getAIDailyLimit() > 0 ? Math.round((getRemainingAIRequests() / getAIDailyLimit()) * 100) : 0}%` }} />
+              </View>
+            </View>
+            <Text style={{ color: colors.textTertiary, fontSize: 11 }}>günlük</Text>
+          </View>
 
           {/* Quick Prompts */}
           <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quickPrompts')}</Text>
@@ -191,6 +234,12 @@ export default function AIAnalysisScreen() {
               <View style={styles.resultHeader}>
                 <MaterialCommunityIcons name="robot-happy-outline" size={20} color={colors.primary} />
                 <Text style={[styles.resultTitle, { color: colors.text }]}>{t('aiResult')}</Text>
+                {fromCache && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#3FB95020', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginLeft: 'auto' }}>
+                    <MaterialCommunityIcons name="lightning-bolt" size={12} color="#3FB950" />
+                    <Text style={{ color: '#3FB950', fontSize: 10, fontWeight: '700' }}>CACHE</Text>
+                  </View>
+                )}
               </View>
               {loading ? (
                 <View style={styles.loadingBox}>

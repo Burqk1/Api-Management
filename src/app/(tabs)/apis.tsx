@@ -33,10 +33,34 @@ export default function ApisScreen() {
   const moveCollection = useApiStore((s) => s.moveCollection);
   const exportCollection = useApiStore((s) => s.exportCollection);
   const importCollection = useApiStore((s) => s.importCollection);
+  const addCollection = useApiStore((s) => s.addCollection);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [importModal, setImportModal] = useState(false);
   const [importJson, setImportJson] = useState('');
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [folderParentId, setFolderParentId] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState('');
   const t = useLanguageStore((s) => s.t);
+
+  const rootCollections = collections.filter((c) => !c.parentId);
+  const getSubFolders = (parentId: string) => collections.filter((c) => c.parentId === parentId);
+
+  const toggleFolder = (id: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleCreateFolder = () => {
+    if (!folderName.trim()) return;
+    addCollection({ name: folderName.trim(), description: '', color: '#58A6FF', icon: 'folder-outline', baseUrl: '', parentId: folderParentId || undefined });
+    setShowFolderModal(false);
+    setFolderName('');
+    setFolderParentId(null);
+  };
 
   const padding = Platform.OS === 'web' ? 32 : 20;
 
@@ -97,6 +121,159 @@ export default function ApisScreen() {
     );
   };
 
+  const renderCollection = (col: typeof collections[0], depth: number): React.ReactNode => {
+    const colEndpoints = endpoints.filter((e) => e.collectionId === col.id);
+    const subFolders = getSubFolders(col.id);
+    const isExpanded = expandedId === col.id;
+    const isFolderOpen = expandedFolders.has(col.id);
+    const hasChildren = subFolders.length > 0;
+
+    return (
+      <View key={col.id} style={{ marginBottom: depth === 0 ? 12 : 4, marginLeft: depth * 16 }}>
+        {/* Collection Header */}
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setExpandedId(isExpanded ? null : col.id)}
+          onLongPress={() => { setFolderParentId(col.id); setShowFolderModal(true); }}
+          style={[styles.colCard, { backgroundColor: isDark ? colors.surface : colors.card }]}
+        >
+          {hasChildren && (
+            <TouchableOpacity hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} onPress={() => toggleFolder(col.id)}>
+              <MaterialCommunityIcons name={isFolderOpen ? 'chevron-down' : 'chevron-right'} size={18} color={colors.textTertiary} />
+            </TouchableOpacity>
+          )}
+          <View style={[styles.colIcon, { backgroundColor: col.color + '20' }]}>
+            <MaterialCommunityIcons name={col.icon as any || 'folder-outline'} size={22} color={col.color} />
+          </View>
+          <View style={styles.colInfo}>
+            <Text style={[styles.colName, { color: colors.text }]}>{col.name}</Text>
+            <Text style={[styles.colMeta, { color: colors.textSecondary }]}>
+              {colEndpoints.length} endpoints{subFolders.length > 0 ? ` · ${subFolders.length} folders` : ''}{col.baseUrl ? ` · ${col.baseUrl}` : ''}
+            </Text>
+          </View>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => moveCollection(col.id, 'up')}>
+            <MaterialCommunityIcons name="arrow-up" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => moveCollection(col.id, 'down')}>
+            <MaterialCommunityIcons name="arrow-down" size={16} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => handleExport(col.id)}>
+            <MaterialCommunityIcons name="export-variant" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} onPress={() => handleDeleteCollection(col.id, col.name)}>
+            <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+          <MaterialCommunityIcons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={20} color={colors.textTertiary} />
+        </TouchableOpacity>
+
+        {/* Sub-folders */}
+        {isFolderOpen && subFolders.map((sub) => renderCollection(sub, depth + 1))}
+
+        {/* Endpoints List */}
+        {isExpanded && (
+          <View style={[styles.endpointList, { backgroundColor: isDark ? colors.surface : colors.card }]}>
+            {colEndpoints.length === 0 ? (
+              <View style={styles.noEndpoints}>
+                <Text style={[styles.noEndpointsText, { color: colors.textTertiary }]}>
+                  {t('noEndpointsYet')}
+                </Text>
+              </View>
+            ) : (
+              colEndpoints.map((ep, i) => (
+                <SwipeableRow
+                  key={ep.id}
+                  leftActions={[{
+                    icon: ep.isFavorite ? 'star' : 'star-outline',
+                    color: '#FFD60A',
+                    bgColor: '#FFD60A18',
+                    onPress: () => toggleFavorite(ep.id),
+                    label: ep.isFavorite ? 'Unfav' : 'Fav',
+                  }]}
+                  rightActions={[
+                    {
+                      icon: 'content-duplicate',
+                      color: '#58A6FF',
+                      bgColor: '#58A6FF18',
+                      onPress: () => {
+                        const { id: _, createdAt: _c, updatedAt: _u, ...rest } = ep;
+                        duplicateEndpoint({ ...rest, name: `${ep.name} (copy)` });
+                      },
+                      label: 'Duplicate',
+                    },
+                    {
+                      icon: 'trash-can-outline',
+                      color: '#FF6961',
+                      bgColor: '#FF696118',
+                      onPress: () => {
+                        Alert.alert(t('deleteEndpoint'), t('deleteEndpointConfirm'), [
+                          { text: t('cancel'), style: 'cancel' },
+                          { text: t('delete'), style: 'destructive', onPress: () => deleteEndpoint(ep.id) },
+                        ]);
+                      },
+                      label: t('delete'),
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.6}
+                    onPress={() => router.push(`/endpoint/${ep.id}` as any)}
+                    style={[
+                      styles.epRow,
+                      { backgroundColor: isDark ? colors.surface : colors.card },
+                      i < colEndpoints.length - 1 && {
+                        borderBottomWidth: StyleSheet.hairlineWidth,
+                        borderBottomColor: colors.divider,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[ep.method] + '20' }]}>
+                      <Text style={[styles.methodText, { color: METHOD_COLORS[ep.method] }]}>
+                        {ep.method}
+                      </Text>
+                    </View>
+                    <View style={styles.epInfo}>
+                      <Text style={[styles.epName, { color: colors.text }]}>{ep.name}</Text>
+                      <Text style={[styles.epUrl, { color: colors.textTertiary }]} numberOfLines={1}>
+                        {ep.url}
+                      </Text>
+                    </View>
+                    {ep.isFavorite && <MaterialCommunityIcons name="star" size={14} color="#FFD60A" />}
+                    <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                </SwipeableRow>
+              ))
+            )}
+            <View style={[styles.epActions, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
+              <TouchableOpacity
+                style={styles.epActionBtn}
+                onPress={() => router.push(`/endpoint/new?collectionId=${col.id}` as any)}
+              >
+                <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
+                <Text style={[styles.epActionText, { color: colors.primary }]}>{t('addEndpoint')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.epActionBtn}
+                onPress={() => { setFolderParentId(col.id); setShowFolderModal(true); }}
+              >
+                <MaterialCommunityIcons name="folder-plus-outline" size={16} color={colors.primary} />
+                <Text style={[styles.epActionText, { color: colors.primary }]}>{t('addFolder') || 'Add Folder'}</Text>
+              </TouchableOpacity>
+              {colEndpoints.length > 0 && (
+                <TouchableOpacity
+                  style={styles.epActionBtn}
+                  onPress={() => router.push(`/runner/${col.id}` as any)}
+                >
+                  <MaterialCommunityIcons name="play-circle-outline" size={16} color="#3FB950" />
+                  <Text style={[styles.epActionText, { color: '#3FB950' }]}>{t('runAll')}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
@@ -144,155 +321,7 @@ export default function ApisScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            collections.map((col) => {
-              const colEndpoints = endpoints.filter((e) => e.collectionId === col.id);
-              const isExpanded = expandedId === col.id;
-
-              return (
-                <View key={col.id} style={{ marginBottom: 12 }}>
-                  {/* Collection Header */}
-                  <TouchableOpacity
-                    activeOpacity={0.7}
-                    onPress={() => setExpandedId(isExpanded ? null : col.id)}
-                    style={[styles.colCard, { backgroundColor: isDark ? colors.surface : colors.card }]}
-                  >
-                    <View style={[styles.colIcon, { backgroundColor: col.color + '20' }]}>
-                      <MaterialCommunityIcons name={col.icon as any || 'folder-outline'} size={22} color={col.color} />
-                    </View>
-                    <View style={styles.colInfo}>
-                      <Text style={[styles.colName, { color: colors.text }]}>{col.name}</Text>
-                      <Text style={[styles.colMeta, { color: colors.textSecondary }]}>
-                        {colEndpoints.length} endpoints{col.baseUrl ? ` · ${col.baseUrl}` : ''}
-                      </Text>
-                    </View>
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={() => moveCollection(col.id, 'up')}
-                    >
-                      <MaterialCommunityIcons name="arrow-up" size={16} color={colors.textTertiary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={() => moveCollection(col.id, 'down')}
-                    >
-                      <MaterialCommunityIcons name="arrow-down" size={16} color={colors.textTertiary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={() => handleExport(col.id)}
-                    >
-                      <MaterialCommunityIcons name="export-variant" size={18} color={colors.textTertiary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                      onPress={() => handleDeleteCollection(col.id, col.name)}
-                    >
-                      <MaterialCommunityIcons name="trash-can-outline" size={18} color={colors.textTertiary} />
-                    </TouchableOpacity>
-                    <MaterialCommunityIcons
-                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                      size={20}
-                      color={colors.textTertiary}
-                    />
-                  </TouchableOpacity>
-
-                  {/* Endpoints List */}
-                  {isExpanded && (
-                    <View style={[styles.endpointList, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-                      {colEndpoints.length === 0 ? (
-                        <View style={styles.noEndpoints}>
-                          <Text style={[styles.noEndpointsText, { color: colors.textTertiary }]}>
-                            {t('noEndpointsYet')}
-                          </Text>
-                        </View>
-                      ) : (
-                        colEndpoints.map((ep, i) => (
-                          <SwipeableRow
-                            key={ep.id}
-                            leftActions={[{
-                              icon: ep.isFavorite ? 'star' : 'star-outline',
-                              color: '#FFD60A',
-                              bgColor: '#FFD60A18',
-                              onPress: () => toggleFavorite(ep.id),
-                              label: ep.isFavorite ? 'Unfav' : 'Fav',
-                            }]}
-                            rightActions={[
-                              {
-                                icon: 'content-duplicate',
-                                color: '#58A6FF',
-                                bgColor: '#58A6FF18',
-                                onPress: () => {
-                                  const { id: _, createdAt: _c, updatedAt: _u, ...rest } = ep;
-                                  duplicateEndpoint({ ...rest, name: `${ep.name} (copy)` });
-                                },
-                                label: 'Duplicate',
-                              },
-                              {
-                                icon: 'trash-can-outline',
-                                color: '#FF6961',
-                                bgColor: '#FF696118',
-                                onPress: () => {
-                                  Alert.alert(t('deleteEndpoint'), t('deleteEndpointConfirm'), [
-                                    { text: t('cancel'), style: 'cancel' },
-                                    { text: t('delete'), style: 'destructive', onPress: () => deleteEndpoint(ep.id) },
-                                  ]);
-                                },
-                                label: t('delete'),
-                              },
-                            ]}
-                          >
-                            <TouchableOpacity
-                              activeOpacity={0.6}
-                              onPress={() => router.push(`/endpoint/${ep.id}` as any)}
-                              style={[
-                                styles.epRow,
-                                { backgroundColor: isDark ? colors.surface : colors.card },
-                                i < colEndpoints.length - 1 && {
-                                  borderBottomWidth: StyleSheet.hairlineWidth,
-                                  borderBottomColor: colors.divider,
-                                },
-                              ]}
-                            >
-                              <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[ep.method] + '20' }]}>
-                                <Text style={[styles.methodText, { color: METHOD_COLORS[ep.method] }]}>
-                                  {ep.method}
-                                </Text>
-                              </View>
-                              <View style={styles.epInfo}>
-                                <Text style={[styles.epName, { color: colors.text }]}>{ep.name}</Text>
-                                <Text style={[styles.epUrl, { color: colors.textTertiary }]} numberOfLines={1}>
-                                  {ep.url}
-                                </Text>
-                              </View>
-                              {ep.isFavorite && <MaterialCommunityIcons name="star" size={14} color="#FFD60A" />}
-                              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
-                            </TouchableOpacity>
-                          </SwipeableRow>
-                        ))
-                      )}
-                      <View style={[styles.epActions, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.divider }]}>
-                        <TouchableOpacity
-                          style={styles.epActionBtn}
-                          onPress={() => router.push(`/endpoint/new?collectionId=${col.id}` as any)}
-                        >
-                          <MaterialCommunityIcons name="plus" size={16} color={colors.primary} />
-                          <Text style={[styles.epActionText, { color: colors.primary }]}>{t('addEndpoint')}</Text>
-                        </TouchableOpacity>
-                        {colEndpoints.length > 0 && (
-                          <TouchableOpacity
-                            style={styles.epActionBtn}
-                            onPress={() => router.push(`/runner/${col.id}` as any)}
-                          >
-                            <MaterialCommunityIcons name="play-circle-outline" size={16} color="#3FB950" />
-                            <Text style={[styles.epActionText, { color: '#3FB950' }]}>{t('runAll')}</Text>
-                          </TouchableOpacity>
-                        )}
-                      </View>
-                    </View>
-                  )}
-                </View>
-              );
-            })
+            rootCollections.map((col) => renderCollection(col, 0))
           )}
         </View>
 
@@ -326,6 +355,35 @@ export default function ApisScreen() {
             >
               <MaterialCommunityIcons name="import" size={18} color="#FFF" />
               <Text style={styles.importBtnText}>{t('importCollection')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      {/* Folder Create Modal */}
+      <Modal visible={showFolderModal} animationType="fade" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{t('newFolder') || 'New Folder'}</Text>
+              <TouchableOpacity onPress={() => { setShowFolderModal(false); setFolderName(''); setFolderParentId(null); }}>
+                <MaterialCommunityIcons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[styles.importInput, { backgroundColor: isDark ? colors.surface : colors.card, color: colors.text, minHeight: 48 }]}
+              value={folderName}
+              onChangeText={setFolderName}
+              placeholder={t('folderName') || 'Folder name'}
+              placeholderTextColor={colors.textTertiary}
+              autoFocus
+            />
+            <TouchableOpacity
+              style={[styles.importBtn, { backgroundColor: colors.primary, opacity: folderName.trim() ? 1 : 0.5 }]}
+              onPress={handleCreateFolder}
+              disabled={!folderName.trim()}
+            >
+              <MaterialCommunityIcons name="folder-plus" size={18} color="#FFF" />
+              <Text style={styles.importBtnText}>{t('create') || 'Create'}</Text>
             </TouchableOpacity>
           </View>
         </View>

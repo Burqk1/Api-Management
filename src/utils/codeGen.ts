@@ -8,7 +8,7 @@ interface CodeGenData {
   auth?: AuthConfig;
 }
 
-export type CodeLang = 'javascript' | 'python' | 'swift' | 'kotlin' | 'go' | 'php' | 'csharp' | 'ruby' | 'curl';
+export type CodeLang = 'javascript' | 'python' | 'swift' | 'kotlin' | 'go' | 'php' | 'csharp' | 'ruby' | 'dart' | 'java' | 'rust' | 'curl';
 
 function getAuthHeaders(auth?: AuthConfig): ApiHeader[] {
   if (!auth || auth.type === 'none') return [];
@@ -61,6 +61,12 @@ export function generateCode(data: CodeGenData, lang: CodeLang): string {
       return genCSharp(data, enabledHeaders, hasBody);
     case 'ruby':
       return genRuby(data, enabledHeaders, hasBody);
+    case 'dart':
+      return genDart(data, enabledHeaders, hasBody);
+    case 'java':
+      return genJava(data, enabledHeaders, hasBody);
+    case 'rust':
+      return genRust(data, enabledHeaders, hasBody);
     case 'curl':
       return genCurl(data, enabledHeaders, hasBody);
   }
@@ -240,6 +246,80 @@ function genRuby(data: CodeGenData, headers: ApiHeader[], hasBody: boolean): str
     code += `request.body = '${data.body}'\n`;
   }
   code += '\nresponse = http.request(request)\nputs response.body';
+  return code;
+}
+
+function genDart(data: CodeGenData, headers: ApiHeader[], hasBody: boolean): string {
+  let code = "import 'package:http/http.dart' as http;\nimport 'dart:convert';\n\n";
+  code += 'Future<void> main() async {\n';
+  code += `  final url = Uri.parse('${data.url}');\n`;
+  if (headers.length > 0) {
+    code += '  final headers = {\n';
+    headers.forEach((h) => { code += `    '${h.key}': '${h.value}',\n`; });
+    code += '  };\n';
+  }
+  if (hasBody) {
+    code += `  final body = json.encode(${data.body});\n`;
+  }
+  code += '\n';
+
+  const dartMethodMap: Record<string, string> = { GET: 'get', POST: 'post', PUT: 'put', PATCH: 'patch', DELETE: 'delete', HEAD: 'head' };
+  const m = dartMethodMap[data.method] || 'get';
+
+  if (['GET', 'HEAD', 'DELETE'].includes(data.method)) {
+    code += `  final response = await http.${m}(url${headers.length > 0 ? ', headers: headers' : ''});\n`;
+  } else {
+    const args = ['url'];
+    if (headers.length > 0) args.push('headers: headers');
+    if (hasBody) args.push('body: body');
+    code += `  final response = await http.${m}(${args.join(', ')});\n`;
+  }
+  code += "  print('Status: ${response.statusCode}');\n";
+  code += '  print(response.body);\n';
+  code += '}';
+  return code;
+}
+
+function genJava(data: CodeGenData, headers: ApiHeader[], hasBody: boolean): string {
+  let code = 'import java.net.URI;\nimport java.net.http.HttpClient;\nimport java.net.http.HttpRequest;\nimport java.net.http.HttpResponse;\n\n';
+  code += 'public class Main {\n';
+  code += '    public static void main(String[] args) throws Exception {\n';
+  code += '        HttpClient client = HttpClient.newHttpClient();\n\n';
+  code += '        HttpRequest request = HttpRequest.newBuilder()\n';
+  code += `            .uri(URI.create("${data.url}"))\n`;
+  code += `            .method("${data.method}", ${hasBody ? 'HttpRequest.BodyPublishers.ofString("' + data.body.replace(/"/g, '\\"').replace(/\n/g, '\\n') + '")' : 'HttpRequest.BodyPublishers.noBody()'})\n`;
+  headers.forEach((h) => {
+    code += `            .header("${h.key}", "${h.value}")\n`;
+  });
+  code += '            .build();\n\n';
+  code += '        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());\n';
+  code += '        System.out.println(response.statusCode());\n';
+  code += '        System.out.println(response.body());\n';
+  code += '    }\n}';
+  return code;
+}
+
+function genRust(data: CodeGenData, headers: ApiHeader[], hasBody: boolean): string {
+  let code = 'use reqwest;\nuse std::error::Error;\n\n';
+  code += '#[tokio::main]\n';
+  code += 'async fn main() -> Result<(), Box<dyn Error>> {\n';
+  code += '    let client = reqwest::Client::new();\n\n';
+
+  const rustMethodMap: Record<string, string> = { GET: 'get', POST: 'post', PUT: 'put', PATCH: 'patch', DELETE: 'delete', HEAD: 'head' };
+  const m = rustMethodMap[data.method] || 'get';
+
+  code += `    let response = client.${m}("${data.url}")\n`;
+  headers.forEach((h) => {
+    code += `        .header("${h.key}", "${h.value}")\n`;
+  });
+  if (hasBody) {
+    code += `        .body(r#"${data.body}"#)\n`;
+  }
+  code += '        .send()\n        .await?;\n\n';
+  code += '    println!("Status: {}", response.status());\n';
+  code += '    let body = response.text().await?;\n';
+  code += '    println!("{}", body);\n';
+  code += '    Ok(())\n}';
   return code;
 }
 

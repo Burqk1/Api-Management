@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { generateId } from '../types/api';
+import { resolveDynamicVariables } from '../utils/dynamicVariables';
 
 export interface EnvVariable {
   key: string;
@@ -108,6 +109,9 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
       const g = globalVars.find((v: EnvVariable) => v.key === key);
       return g ? g.value : match;
     });
+
+    // Resolve dynamic variables like {{$timestamp}}, {{$guid}}, etc.
+    resolved = resolveDynamicVariables(resolved);
 
     return resolved;
   },

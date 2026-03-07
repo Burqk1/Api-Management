@@ -17,7 +17,18 @@ import { generateMarkdownDocs, generateOpenAPISpec } from '../utils/apiDocs';
 import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
 
-type DocFormat = 'markdown' | 'openapi';
+type DocFormat = 'markdown' | 'openapi' | 'html';
+
+function generateHTMLDocs(col: any, eps: any[]): string {
+  const mc: Record<string, string> = { GET: '#61affe', POST: '#49cc90', PUT: '#fca130', PATCH: '#50e3c2', DELETE: '#f93e3e', HEAD: '#9012fe', OPTIONS: '#0d5aa7' };
+  const rows = eps.map((ep) => {
+    const c = mc[ep.method] || '#999';
+    const hdr = (ep.headers || []).filter((h: any) => h.enabled).map((h: any) => `<tr><td><code>${h.key}</code></td><td><code>${h.value}</code></td></tr>`).join('');
+    const body = ep.body ? `<h4>Request Body</h4><pre class="cb"><code>${ep.body.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>` : '';
+    return `<div class="ep" id="ep-${ep.id}"><div class="eh"><span class="m" style="background:${c}">${ep.method}</span><span class="en">${ep.name}</span></div><div class="eu"><code>${ep.url}</code></div>${ep.notes ? `<p class="nt">${ep.notes}</p>` : ''}${hdr ? `<h4>Headers</h4><table class="ht"><tr><th>Key</th><th>Value</th></tr>${hdr}</table>` : ''}${body}</div>`;
+  }).join('\n');
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${col.name}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,sans-serif;background:#0d1117;color:#c9d1d9;line-height:1.6}.c{max-width:900px;margin:0 auto;padding:40px 20px}h1{font-size:32px;color:#f0f6fc;margin-bottom:8px}.ds{color:#8b949e;font-size:16px;margin-bottom:32px}.bu{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 16px;margin-bottom:24px;font-family:monospace;color:#58a6ff}.toc{background:#161b22;border-radius:12px;padding:20px;margin-bottom:32px}.toc h3{color:#f0f6fc;margin-bottom:12px}.toc a{color:#58a6ff;text-decoration:none;display:flex;align-items:center;gap:8px;padding:6px 0}.ms{display:inline-block;width:60px;text-align:center;padding:2px 0;border-radius:4px;color:#fff;font-size:11px;font-weight:700}.ep{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;margin-bottom:16px}.eh{display:flex;align-items:center;gap:12px;margin-bottom:8px}.m{color:#fff;padding:4px 12px;border-radius:6px;font-weight:700;font-size:13px}.en{font-size:20px;font-weight:700;color:#f0f6fc}.eu{font-family:monospace;color:#8b949e;margin-bottom:12px;font-size:14px}.nt{color:#8b949e;margin-bottom:12px;font-style:italic}h4{color:#f0f6fc;font-size:14px;margin:16px 0 8px}.ht{width:100%;border-collapse:collapse}.ht th,.ht td{text-align:left;padding:8px 12px;border-bottom:1px solid #30363d}.ht th{color:#8b949e;font-size:12px;text-transform:uppercase}.ht code{color:#58a6ff}.cb{background:#0d1117;border:1px solid #30363d;border-radius:8px;padding:16px;overflow-x:auto}.cb code{color:#c9d1d9;font-size:13px;white-space:pre-wrap}</style></head><body><div class="c"><h1>${col.name}</h1><p class="ds">${col.description || 'API Documentation'}</p>${col.baseUrl ? `<div class="bu">Base URL: ${col.baseUrl}</div>` : ''}<div class="toc"><h3>Endpoints (${eps.length})</h3>${eps.map((ep) => `<a href="#ep-${ep.id}"><span class="ms" style="background:${mc[ep.method]||'#999'}">${ep.method}</span>${ep.name}</a>`).join('')}</div>${rows}<div style="text-align:center;color:#484f58;margin-top:40px;font-size:13px">Generated from API Management App</div></div></body></html>`;
+}
 
 export default function ApiDocsScreen() {
   const { colors, isDark } = useTheme();
@@ -43,9 +54,11 @@ export default function ApiDocsScreen() {
 
     if (format === 'markdown') {
       setGenerated(generateMarkdownDocs(col, colEndpoints, callLogs));
-    } else {
+    } else if (format === 'openapi') {
       const spec = generateOpenAPISpec(col, colEndpoints, callLogs);
       setGenerated(JSON.stringify(spec, null, 2));
+    } else {
+      setGenerated(generateHTMLDocs(col, colEndpoints));
     }
   };
 
@@ -112,6 +125,13 @@ export default function ApiDocsScreen() {
             >
               <MaterialCommunityIcons name="api" size={28} color={format === 'openapi' ? '#6BA539' : colors.textSecondary} />
               <Text style={{ color: format === 'openapi' ? '#6BA539' : colors.text, fontWeight: '600', fontSize: 13 }}>OpenAPI 3.0</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.formatBtn, { backgroundColor: format === 'html' ? '#E44D2620' : cardBg, borderColor: format === 'html' ? '#E44D26' : 'transparent', borderWidth: 2 }]}
+              onPress={() => setFormat('html')}
+            >
+              <MaterialCommunityIcons name="language-html5" size={28} color={format === 'html' ? '#E44D26' : colors.textSecondary} />
+              <Text style={{ color: format === 'html' ? '#E44D26' : colors.text, fontWeight: '600', fontSize: 13 }}>HTML</Text>
             </TouchableOpacity>
           </View>
 

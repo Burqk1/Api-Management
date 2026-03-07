@@ -100,7 +100,7 @@ export default function PaywallScreen() {
               onPress={() => setSelected('pro')}
             >
               <Text style={[styles.planName, { color: colors.text }]}>Pro</Text>
-              <Text style={[styles.planPrice, { color: colors.primary }]}>$9</Text>
+              <Text style={[styles.planPrice, { color: colors.primary }]}>$4.99</Text>
               <Text style={[styles.planPeriod, { color: colors.textSecondary }]}>/{t('month')}</Text>
             </TouchableOpacity>
 
@@ -112,7 +112,7 @@ export default function PaywallScreen() {
               onPress={() => setSelected('team')}
             >
               <Text style={[styles.planName, { color: colors.text }]}>Team</Text>
-              <Text style={[styles.planPrice, { color: '#BC8CFF' }]}>$19</Text>
+              <Text style={[styles.planPrice, { color: '#BC8CFF' }]}>$8.99</Text>
               <Text style={[styles.planPeriod, { color: colors.textSecondary }]}>/{t('perUser')}/{t('month')}</Text>
             </TouchableOpacity>
           </View>

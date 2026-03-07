@@ -287,6 +287,69 @@ export default function DashboardScreen() {
               </View>
               <Text style={[styles.actionLabel, { color: colors.text }]}>{t('compareRequests')}</Text>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/grpc' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#00BCD418' }]}>
+                <MaterialCommunityIcons name="server-network-off" size={22} color="#00BCD4" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>gRPC</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/jsonpath' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#FF950018' }]}>
+                <MaterialCommunityIcons name="code-json" size={22} color="#FF9500" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>JSONPath</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/workspaces' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#FF950018' }]}>
+                <MaterialCommunityIcons name="briefcase-outline" size={22} color="#FF9500" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('workspaces') || 'Workspaces'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/datadriven' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#00BCD418' }]}>
+                <MaterialCommunityIcons name="table-large" size={22} color="#00BCD4" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>Data Test</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/mqtt' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#9C27B018' }]}>
+                <MaterialCommunityIcons name="access-point-network" size={22} color="#9C27B0" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>MQTT</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/scheduledruns' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#607D8B18' }]}>
+                <MaterialCommunityIcons name="clock-outline" size={22} color="#607D8B" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('scheduledRuns') || 'Scheduled'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              onPress={() => router.push('/contracttest' as any)}
+            >
+              <View style={[styles.actionIcon, { backgroundColor: '#4CAF5018' }]}>
+                <MaterialCommunityIcons name="file-check-outline" size={22} color="#4CAF50" />
+              </View>
+              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('contractTesting') || 'Contract'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

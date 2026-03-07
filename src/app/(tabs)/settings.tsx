@@ -18,6 +18,8 @@ import { ThemeName } from '../../constants/colors';
 import { Language } from '../../constants/translations';
 import { useLanguageStore } from '../../stores/languageStore';
 import * as Clipboard from 'expo-clipboard';
+import { useSecurityStore } from '../../stores/securityStore';
+import { useCostGuardStore } from '../../stores/costGuardStore';
 
 const THEME_KEYS: { labelKey: string; value: ThemeName; icon: string }[] = [
   { labelKey: 'system', value: 'system', icon: 'cellphone' },
@@ -46,6 +48,12 @@ export default function SettingsScreen() {
   const deleteApiKey = useApiStore((s) => s.deleteApiKey);
   const user = useAuthStore((s) => s.user);
   const plan = useAuthStore((s) => s.plan);
+  const usageReport = useCostGuardStore((s) => s.getUsageReport);
+  const totalAIReqs = useCostGuardStore((s) => s.totalAIRequests);
+  const biometricEnabled = useSecurityStore((s) => s.biometricEnabled);
+  const setBiometricEnabled = useSecurityStore((s) => s.setBiometricEnabled);
+  const autoLockTimeout = useSecurityStore((s) => s.autoLockTimeout);
+  const setAutoLockTimeout = useSecurityStore((s) => s.setAutoLockTimeout);
 
   const [showAddKey, setShowAddKey] = useState(false);
   const [keyName, setKeyName] = useState('');
@@ -118,6 +126,47 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Kullanım Dashboard */}
+      {plan !== 'free' && (() => {
+        const report = usageReport();
+        return (
+          <>
+            <Text style={[styles.section, { color: colors.textSecondary }]}>KULLANIM</Text>
+            <View style={[styles.card, { backgroundColor: isDark ? colors.surface : colors.card }]}>
+              {/* AI Kullanımı */}
+              <View style={[styles.row, { flexDirection: 'column', alignItems: 'stretch', gap: 6 }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={[styles.iconBox, { backgroundColor: '#BC8CFF' }]}>
+                    <MaterialCommunityIcons name="robot-outline" size={18} color="#FFF" />
+                  </View>
+                  <Text style={[styles.rowLabel, { color: colors.text }]}>AI İstekleri (bugün)</Text>
+                  <Text style={{ color: report.aiUsed >= report.aiLimit ? '#FF6961' : '#3FB950', fontSize: 14, fontWeight: '700' }}>{report.aiUsed}/{report.aiLimit}</Text>
+                </View>
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: isDark ? colors.systemGray5 : '#E5E5EA' }}>
+                  <View style={{ height: '100%', borderRadius: 2, backgroundColor: report.aiPercentage > 80 ? '#FF6961' : report.aiPercentage > 50 ? '#D29922' : '#3FB950', width: `${Math.min(100, report.aiPercentage)}%` }} />
+                </View>
+              </View>
+              {/* Toplam AI */}
+              <View style={[styles.row, styles.separator, { borderBottomColor: colors.divider }]}>
+                <View style={[styles.iconBox, { backgroundColor: '#58A6FF' }]}>
+                  <MaterialCommunityIcons name="chart-line" size={18} color="#FFF" />
+                </View>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>Toplam AI İsteği</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 14, fontWeight: '600' }}>{totalAIReqs}</Text>
+              </View>
+              {/* Plan */}
+              <View style={[styles.row, styles.separator, { borderBottomColor: colors.divider }]}>
+                <View style={[styles.iconBox, { backgroundColor: '#FFD60A' }]}>
+                  <MaterialCommunityIcons name="crown" size={18} color="#FFF" />
+                </View>
+                <Text style={[styles.rowLabel, { color: colors.text }]}>Plan</Text>
+                <Text style={{ color: '#FFD60A', fontSize: 14, fontWeight: '700' }}>{report.plan.toUpperCase()}</Text>
+              </View>
+            </View>
+          </>
+        );
+      })()}
 
       {/* Theme */}
       <Text style={[styles.section, { color: colors.textSecondary }]}>{t('appearance')}</Text>
@@ -271,6 +320,40 @@ export default function SettingsScreen() {
             <MaterialCommunityIcons name="plus" size={18} color={colors.primary} />
             <Text style={[styles.addKeyText, { color: colors.primary }]}>{t('addApiKey')}</Text>
           </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Security */}
+      <Text style={[styles.section, { color: colors.textSecondary }]}>SECURITY</Text>
+      <View style={[styles.card, { backgroundColor: isDark ? colors.surface : colors.card }]}>
+        <TouchableOpacity
+          onPress={() => setBiometricEnabled(!biometricEnabled)}
+          activeOpacity={0.5}
+          style={[styles.row, styles.separator, { borderBottomColor: colors.divider }]}
+        >
+          <View style={[styles.iconBox, { backgroundColor: '#5856D6' }]}>
+            <MaterialCommunityIcons name="fingerprint" size={18} color="#FFFFFF" />
+          </View>
+          <Text style={[styles.rowLabel, { color: colors.text }]}>{t('biometricLock') || 'Biometric Lock'}</Text>
+          <View style={[{ width: 44, height: 26, borderRadius: 13, justifyContent: 'center', padding: 2 }, { backgroundColor: biometricEnabled ? colors.primary : colors.systemGray4 }]}>
+            <View style={[{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFF' }, biometricEnabled && { alignSelf: 'flex-end' }]} />
+          </View>
+        </TouchableOpacity>
+        {biometricEnabled && (
+          <View style={[styles.row, { flexWrap: 'wrap', gap: 8 }]}>
+            <Text style={[{ color: colors.textSecondary, fontSize: 13, marginRight: 8 }]}>{t('autoLockTimeout') || 'Auto Lock After'}:</Text>
+            {[0, 1, 5, 15, 30].map((m) => (
+              <TouchableOpacity
+                key={m}
+                onPress={() => setAutoLockTimeout(m)}
+                style={[{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 }, { backgroundColor: autoLockTimeout === m ? colors.primary + '20' : 'transparent' }]}
+              >
+                <Text style={[{ fontSize: 13, fontWeight: '600' }, { color: autoLockTimeout === m ? colors.primary : colors.textSecondary }]}>
+                  {m === 0 ? (t('immediately') || 'Immediately') : `${m} ${t('minutes') || 'min'}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         )}
       </View>
 

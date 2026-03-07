@@ -95,6 +95,12 @@ function buildPostmanBody(endpoint: ApiEndpoint) {
         raw: endpoint.body || '',
         options: { raw: { language: 'text' } },
       };
+    case 'xml':
+      return {
+        mode: 'raw' as const,
+        raw: endpoint.body || '',
+        options: { raw: { language: 'xml' } },
+      };
     case 'form-data':
       return {
         mode: 'formdata' as const,
@@ -373,6 +379,15 @@ function buildOpenAPIRequestBody(endpoint: ApiEndpoint) {
         required: true,
         content: {
           'text/plain': {
+            schema: { type: 'string' },
+          },
+        },
+      };
+    case 'xml':
+      return {
+        required: true,
+        content: {
+          'application/xml': {
             schema: { type: 'string' },
           },
         },

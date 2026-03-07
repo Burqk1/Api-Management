@@ -11,7 +11,7 @@ interface Props {
   };
 }
 
-const COLORS = {
+const COLORS: Record<string, string> = {
   key: '#58A6FF',
   string: '#A5D6FF',
   number: '#79C0FF',

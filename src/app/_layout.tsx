@@ -368,6 +368,22 @@ export default function RootLayout() {
           name="testexec"
           options={{ headerBackTitle: t('cancel'), title: t('testExecution') || 'Test Execution', presentation: 'modal' }}
         />
+        <Stack.Screen
+          name="curlimport"
+          options={{ headerBackTitle: t('cancel'), title: 'cURL Import', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="qrshare"
+          options={{ headerBackTitle: t('cancel'), title: 'QR Share', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="quickactions"
+          options={{ headerBackTitle: t('cancel'), title: 'Quick Actions', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="camerascan"
+          options={{ headerBackTitle: t('cancel'), title: 'Scan & Detect', presentation: 'modal' }}
+        />
       </Stack>
     </>
   );

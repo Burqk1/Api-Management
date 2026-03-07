@@ -108,6 +108,15 @@ export default function ToolsScreen() {
       ],
     },
     {
+      titleKey: 'mobileTools',
+      items: [
+        { key: 'quickActions', icon: 'lightning-bolt', color: '#FFD60A', route: '/quickactions' },
+        { key: 'curlImport', icon: 'console-line', color: '#3FB950', route: '/curlimport' },
+        { key: 'qrShare', icon: 'qrcode', color: '#58A6FF', route: '/qrshare' },
+        { key: 'scanDetect', icon: 'text-recognition', color: '#BC8CFF', route: '/camerascan' },
+      ],
+    },
+    {
       titleKey: 'networkTools',
       items: [
         { key: 'offlineQueue', icon: 'cloud-off-outline', color: isOnline ? '#3FB950' : '#FF6961', route: '/offlinequeue', badge: queueCount > 0 ? String(queueCount) : undefined },

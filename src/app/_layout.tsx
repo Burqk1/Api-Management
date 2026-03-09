@@ -384,6 +384,50 @@ export default function RootLayout() {
           name="camerascan"
           options={{ headerBackTitle: t('cancel'), title: 'Scan & Detect', presentation: 'modal' }}
         />
+        <Stack.Screen
+          name="oauth2"
+          options={{ headerBackTitle: t('cancel'), title: 'OAuth 2.0', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="prerequest"
+          options={{ headerBackTitle: t('cancel'), title: 'Pre/Post Scripts', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="postmanimport"
+          options={{ headerBackTitle: t('cancel'), title: 'Postman Import', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="fileupload"
+          options={{ headerBackTitle: t('cancel'), title: 'File Upload', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="assertions"
+          options={{ headerBackTitle: t('cancel'), title: 'Test Assertions', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="biometric"
+          options={{ headerBackTitle: t('cancel'), title: 'Face ID', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="ioswidget"
+          options={{ headerBackTitle: t('cancel'), title: 'iOS Widgets', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="watchcompanion"
+          options={{ headerBackTitle: t('cancel'), title: 'Apple Watch', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="pushnotif"
+          options={{ headerBackTitle: t('cancel'), title: 'Push Notifications', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="shareext"
+          options={{ headerBackTitle: t('cancel'), title: 'Share Extension', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="responsedownload"
+          options={{ headerBackTitle: t('cancel'), title: 'Response Download', presentation: 'modal' }}
+        />
       </Stack>
     </>
   );

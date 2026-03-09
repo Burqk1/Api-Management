@@ -114,6 +114,32 @@ export default function ToolsScreen() {
         { key: 'curlImport', icon: 'console-line', color: '#3FB950', route: '/curlimport' },
         { key: 'qrShare', icon: 'qrcode', color: '#58A6FF', route: '/qrshare' },
         { key: 'scanDetect', icon: 'text-recognition', color: '#BC8CFF', route: '/camerascan' },
+        { key: 'fileUpload', icon: 'file-upload-outline', color: '#FF9500', route: '/fileupload' },
+      ],
+    },
+    {
+      titleKey: 'authTools',
+      items: [
+        { key: 'oauth2Flow', icon: 'shield-key-outline', color: '#58A6FF', route: '/oauth2' },
+        { key: 'biometricAuth', icon: 'face-recognition', color: '#3FB950', route: '/biometric' },
+      ],
+    },
+    {
+      titleKey: 'testingTools',
+      items: [
+        { key: 'prePostScripts', icon: 'script-text-outline', color: '#BC8CFF', route: '/prerequest' },
+        { key: 'assertionBuilder', icon: 'check-decagram-outline', color: '#3FB950', route: '/assertions' },
+        { key: 'postmanCollectionImport', icon: 'application-import', color: '#FF6961', route: '/postmanimport' },
+      ],
+    },
+    {
+      titleKey: 'iosFeatures',
+      items: [
+        { key: 'iosWidgets', icon: 'widgets-outline', color: '#58A6FF', route: '/ioswidget' },
+        { key: 'appleWatch', icon: 'watch-variant', color: '#3FB950', route: '/watchcompanion' },
+        { key: 'pushAlerts', icon: 'bell-ring-outline', color: '#FF6961', route: '/pushnotif' },
+        { key: 'shareExtension', icon: 'share-variant-outline', color: '#BC8CFF', route: '/shareext' },
+        { key: 'responseDownload', icon: 'download-circle-outline', color: '#FFD60A', route: '/responsedownload' },
       ],
     },
     {

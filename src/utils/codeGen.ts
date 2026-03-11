@@ -10,28 +10,33 @@ interface CodeGenData {
 
 export type CodeLang = 'javascript' | 'python' | 'swift' | 'kotlin' | 'go' | 'php' | 'csharp' | 'ruby' | 'dart' | 'java' | 'rust' | 'curl';
 
+// Mask secrets in generated code to prevent accidental exposure when sharing
+function maskSecret(value: string): string {
+  if (value.length <= 8) return '{{YOUR_TOKEN}}';
+  return value.slice(0, 4) + '...' + '{{REDACTED}}';
+}
+
 function getAuthHeaders(auth?: AuthConfig): ApiHeader[] {
   if (!auth || auth.type === 'none') return [];
 
   switch (auth.type) {
     case 'bearer':
       return auth.bearer
-        ? [{ key: 'Authorization', value: `Bearer ${auth.bearer.token}`, enabled: true }]
+        ? [{ key: 'Authorization', value: `Bearer ${maskSecret(auth.bearer.token)}`, enabled: true }]
         : [];
     case 'basic':
       if (auth.basic) {
-        const encoded = btoa(`${auth.basic.username}:${auth.basic.password}`);
-        return [{ key: 'Authorization', value: `Basic ${encoded}`, enabled: true }];
+        return [{ key: 'Authorization', value: 'Basic {{BASE64_CREDENTIALS}}', enabled: true }];
       }
       return [];
     case 'apikey':
       if (auth.apikey && auth.apikey.addTo === 'header') {
-        return [{ key: auth.apikey.key, value: auth.apikey.value, enabled: true }];
+        return [{ key: auth.apikey.key, value: maskSecret(auth.apikey.value), enabled: true }];
       }
       return [];
     case 'oauth2':
       if (auth.oauth2?.accessToken) {
-        return [{ key: 'Authorization', value: `Bearer ${auth.oauth2.accessToken}`, enabled: true }];
+        return [{ key: 'Authorization', value: `Bearer ${maskSecret(auth.oauth2.accessToken)}`, enabled: true }];
       }
       return [];
     default:

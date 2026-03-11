@@ -94,10 +94,22 @@ export default function PreRequestScreen() {
       },
     };
 
+    // Security: validate script before execution
+    const BLOCKED = ['fetch', 'XMLHttpRequest', 'WebSocket', 'import', 'require', 'eval', 'Function', 'setTimeout', 'setInterval', 'process', 'global', 'globalThis', 'window', 'AsyncStorage', 'SecureStore', 'supabase', 'document', 'navigator'];
+    for (const kw of BLOCKED) {
+      const regex = new RegExp(`(?<!['".\`\\w])${kw}(?!['".\`\\w])`, 'g');
+      if (regex.test(script)) {
+        logs.push({ text: `SECURITY: "${kw}" is not allowed in scripts`, type: 'fail' });
+        setOutput(logs);
+        setShowOutput(true);
+        return;
+      }
+    }
+
     try {
       const mockConsole = { log: (...args: any[]) => logs.push({ text: args.join(' '), type: 'log' }) };
-      const fn = new Function('pm', 'console', 'btoa', 'atob', 'crypto', script);
-      fn(mockPm, mockConsole, (s: string) => Buffer.from(s).toString('base64'), (s: string) => Buffer.from(s, 'base64').toString(), { randomUUID: () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }) });
+      const fn = new Function('pm', 'console', 'btoa', 'atob', 'crypto', 'fetch', 'eval', 'Function', 'process', 'globalThis', script);
+      fn(mockPm, mockConsole, (s: string) => Buffer.from(s).toString('base64'), (s: string) => Buffer.from(s, 'base64').toString(), { randomUUID: () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16); }) }, undefined, undefined, undefined, undefined, undefined);
       if (logs.length === 0) logs.push({ text: 'Script executed successfully (no output)', type: 'log' });
     } catch (e: any) {
       logs.push({ text: `ERROR: ${e.message}`, type: 'fail' });

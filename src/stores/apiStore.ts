@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setSecure, getSecure } from '../utils/secureStorage';
 import {
   ApiCollection,
   ApiEndpoint,
@@ -67,7 +68,10 @@ const persist = (state: ApiState) => {
   AsyncStorage.setItem('api_collections', JSON.stringify(state.collections));
   AsyncStorage.setItem('api_endpoints', JSON.stringify(state.endpoints));
   AsyncStorage.setItem('api_call_logs', JSON.stringify(state.callLogs));
-  AsyncStorage.setItem('api_keys', JSON.stringify(state.apiKeys));
+  // API keys stored in SecureStore (encrypted)
+  setSecure('api_keys', JSON.stringify(state.apiKeys)).catch((e) =>
+    console.warn('[apiStore] Failed to save API keys securely:', e)
+  );
 };
 
 export const useApiStore = create<ApiState>((set, get) => ({
@@ -225,14 +229,28 @@ export const useApiStore = create<ApiState>((set, get) => ({
     try {
       const data = JSON.parse(jsonStr);
       if (!data.collection || !data.endpoints) return false;
+      // Schema validation
+      if (typeof data.collection.name !== 'string' || !data.collection.name.trim()) return false;
+      if (!Array.isArray(data.endpoints)) return false;
+      const VALID_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+      for (const ep of data.endpoints) {
+        if (typeof ep.name !== 'string' || typeof ep.url !== 'string') return false;
+        if (ep.method && !VALID_METHODS.includes(ep.method)) return false;
+        // Strip potentially dangerous script fields from imported data
+        delete ep.preRequestScript;
+        delete ep.postRequestScript;
+      }
       const newColId = generateId();
       const col: ApiCollection = {
-        ...data.collection,
+        name: String(data.collection.name).slice(0, 200),
+        description: String(data.collection.description || '').slice(0, 1000),
         id: newColId,
         createdAt: Date.now(),
-      };
+      } as ApiCollection;
       const eps: ApiEndpoint[] = data.endpoints.map((ep: any) => ({
         ...ep,
+        name: String(ep.name).slice(0, 200),
+        url: String(ep.url).slice(0, 2000),
         id: generateId(),
         collectionId: newColId,
         createdAt: Date.now(),
@@ -306,12 +324,24 @@ export const useApiStore = create<ApiState>((set, get) => ({
 
   initialize: async () => {
     try {
-      const [cols, eps, logs, keys] = await Promise.all([
+      const [cols, eps, logs] = await Promise.all([
         AsyncStorage.getItem('api_collections'),
         AsyncStorage.getItem('api_endpoints'),
         AsyncStorage.getItem('api_call_logs'),
-        AsyncStorage.getItem('api_keys'),
       ]);
+      // API keys from SecureStore (encrypted), fallback to AsyncStorage for migration
+      let keys: string | null = null;
+      try {
+        keys = await getSecure('api_keys');
+        if (!keys) {
+          // Migration: move from AsyncStorage to SecureStore
+          keys = await AsyncStorage.getItem('api_keys');
+          if (keys) {
+            await setSecure('api_keys', keys);
+            await AsyncStorage.removeItem('api_keys');
+          }
+        }
+      } catch (e) { console.warn('[apiStore] Failed to load API keys from SecureStore:', e); }
       set({
         collections: cols ? JSON.parse(cols) : [],
         endpoints: eps ? JSON.parse(eps) : [],

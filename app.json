@@ -15,7 +15,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.devtoolbox.app",
-      "associatedDomains": ["applinks:devtoolbox.app"]
+      "associatedDomains": [
+        "applinks:devtoolbox.app"
+      ]
     },
     "android": {
       "adaptiveIcon": {
@@ -28,10 +30,19 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "devtoolbox" },
-            { "scheme": "https", "host": "devtoolbox.app", "pathPrefix": "/open" }
+            {
+              "scheme": "devtoolbox"
+            },
+            {
+              "scheme": "https",
+              "host": "devtoolbox.app",
+              "pathPrefix": "/open"
+            }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -40,7 +51,9 @@
       "bundler": "metro"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "expo-secure-store",
+      "react-native-purchases"
     ],
     "experiments": {
       "typedRoutes": true

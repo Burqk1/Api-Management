@@ -43,6 +43,26 @@ export interface ScriptResult {
   testResults: { name: string; passed: boolean; error?: string }[];
 }
 
+// Blocked globals that scripts must not access
+const BLOCKED_KEYWORDS = [
+  'fetch', 'XMLHttpRequest', 'WebSocket', 'import', 'require',
+  'eval', 'Function', 'setTimeout', 'setInterval',
+  'process', 'global', 'globalThis', 'window',
+  'AsyncStorage', 'SecureStore', 'supabase',
+  'localStorage', 'sessionStorage', 'indexedDB',
+  'document', 'navigator',
+];
+
+function validateScript(script: string): string | null {
+  for (const keyword of BLOCKED_KEYWORDS) {
+    const regex = new RegExp(`(?<!['".\`\\w])${keyword}(?!['".\`\\w])`, 'g');
+    if (regex.test(script)) {
+      return `Blocked: "${keyword}" is not allowed in scripts for security reasons`;
+    }
+  }
+  return null;
+}
+
 export function runScript(script: string, context: ScriptContext): ScriptResult {
   const result: ScriptResult = {
     success: true,
@@ -54,6 +74,15 @@ export function runScript(script: string, context: ScriptContext): ScriptResult 
   };
 
   if (!script.trim()) return result;
+
+  // Validate script before execution
+  const validationError = validateScript(script);
+  if (validationError) {
+    result.success = false;
+    result.error = validationError;
+    result.console.push(`[SECURITY] ${validationError}`);
+    return result;
+  }
 
   try {
     // Build the sandbox environment
@@ -133,12 +162,15 @@ export function runScript(script: string, context: ScriptContext): ScriptResult 
     const setUrl = (newUrl: string) => { currentUrl = newUrl; result.urlOverride = newUrl; };
     const setBody = (newBody: string) => { currentBody = newBody; result.bodyOverride = newBody; };
 
-    // Execute script
+    // Execute script with blocked globals nulled out
     const scriptFn = new Function(
       'pm', 'console', 'setUrl', 'setBody',
       'request', 'response',
       'environment', 'globals',
       'headers',
+      // Shadow dangerous globals
+      'fetch', 'XMLHttpRequest', 'WebSocket',
+      'eval', 'Function', 'process', 'globalThis',
       script
     );
 
@@ -147,6 +179,9 @@ export function runScript(script: string, context: ScriptContext): ScriptResult 
       pm.request, pm.response,
       pm.environment, pm.globals,
       headerStore,
+      // Nulled dangerous globals
+      undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined,
     );
   } catch (e: any) {
     result.success = false;

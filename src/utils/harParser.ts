@@ -11,7 +11,12 @@ export interface HAREntry {
 }
 
 export function parseHAR(jsonStr: string): HAREntry[] {
-  const data = JSON.parse(jsonStr);
+  let data: any;
+  try {
+    data = JSON.parse(jsonStr);
+  } catch {
+    throw new Error('Invalid JSON: could not parse HAR file');
+  }
   const entries: HAREntry[] = [];
 
   const log = data.log;

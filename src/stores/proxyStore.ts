@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ProxyConfig } from '../types/api';
+import { setSecure, getSecure } from '../utils/secureStorage';
 
 interface ProxyState {
   proxy: ProxyConfig;
@@ -20,14 +20,17 @@ export const useProxyStore = create<ProxyState>((set, get) => ({
   setProxy: (config) => {
     set((s) => {
       const updated = { ...s.proxy, ...config };
-      AsyncStorage.setItem('proxy_config', JSON.stringify(updated));
+      // Proxy config may contain auth credentials — store securely
+      setSecure('proxy_config', JSON.stringify(updated)).catch((e) =>
+        console.warn('[proxyStore] Failed to save proxy config:', e)
+      );
       return { proxy: updated };
     });
   },
 
   initialize: async () => {
     try {
-      const saved = await AsyncStorage.getItem('proxy_config');
+      const saved = await getSecure('proxy_config');
       if (saved) set({ proxy: JSON.parse(saved) });
     } catch (e) { console.warn('[proxyStore] Failed to initialize:', e); }
   },

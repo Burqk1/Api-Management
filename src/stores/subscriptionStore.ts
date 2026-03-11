@@ -114,14 +114,16 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   },
 
   initialize: async () => {
-    const saved = await AsyncStorage.getItem('daily_req_count');
-    if (saved) {
-      const { count, date } = JSON.parse(saved);
-      const today = new Date().toDateString();
-      set({
-        dailyRequestCount: date === today ? count : 0,
-        lastResetDate: date === today ? date : today,
-      });
-    }
+    try {
+      const saved = await AsyncStorage.getItem('daily_req_count');
+      if (saved) {
+        const { count, date } = JSON.parse(saved);
+        const today = new Date().toDateString();
+        set({
+          dailyRequestCount: date === today ? count : 0,
+          lastResetDate: date === today ? date : today,
+        });
+      }
+    } catch (e) { console.warn('[subscriptionStore] Failed to initialize:', e); }
   },
 }));

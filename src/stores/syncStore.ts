@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from './authStore';
 import { useApiStore } from './apiStore';
+import { encryptSync, decryptSync } from '../utils/encryption';
 
 type SyncStatus = 'idle' | 'syncing' | 'error' | 'success';
 
@@ -37,9 +38,9 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       const apiState = useApiStore.getState();
       const payload = {
         user_id: user.id,
-        collections: JSON.stringify(apiState.collections),
-        endpoints: JSON.stringify(apiState.endpoints),
-        call_logs: JSON.stringify(apiState.callLogs.slice(-200)),
+        collections: encryptSync(JSON.stringify(apiState.collections), user.id),
+        endpoints: encryptSync(JSON.stringify(apiState.endpoints), user.id),
+        call_logs: encryptSync(JSON.stringify(apiState.callLogs.slice(-200)), user.id),
         updated_at: new Date().toISOString(),
       };
 
@@ -71,10 +72,23 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       if (error) throw error;
       if (!data) { set({ status: 'idle' }); return; }
 
-      // Merge cloud data into local
+      // Merge cloud data into local (decrypt first)
       const apiStore = useApiStore.getState();
-      const cloudCollections = JSON.parse(data.collections || '[]');
-      const cloudEndpoints = JSON.parse(data.endpoints || '[]');
+      let cloudCollections: any[] = [];
+      let cloudEndpoints: any[] = [];
+      try {
+        const decCol = decryptSync(data.collections || '', user.id);
+        cloudCollections = JSON.parse(decCol || '[]');
+      } catch {
+        // Fallback: try parsing as unencrypted (legacy data)
+        try { cloudCollections = JSON.parse(data.collections || '[]'); } catch { /* skip */ }
+      }
+      try {
+        const decEp = decryptSync(data.endpoints || '', user.id);
+        cloudEndpoints = JSON.parse(decEp || '[]');
+      } catch {
+        try { cloudEndpoints = JSON.parse(data.endpoints || '[]'); } catch { /* skip */ }
+      }
 
       // Simple merge: cloud wins for conflicts by id
       const mergedCollections = mergeById(apiStore.collections, cloudCollections);

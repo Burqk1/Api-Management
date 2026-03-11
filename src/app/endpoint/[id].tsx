@@ -1558,7 +1558,13 @@ async function fetchOAuth2Token(
     body: params.toString(),
   });
 
-  const data = await res.json();
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    console.warn('[OAuth2] Token endpoint returned non-JSON response');
+    return null;
+  }
   return data.access_token || null;
 }
 

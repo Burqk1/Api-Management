@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ROUTE_PLAN_MAP } from '../hooks/useRouteGuard';
 import { useThemeStore } from '../stores/themeStore';
 import { useApiStore } from '../stores/apiStore';
 import { useMonitorStore } from '../stores/monitorStore';
@@ -38,6 +39,24 @@ export default function RootLayout() {
   const t = useLanguageStore((s) => s.t);
   const colors = useThemeStore((s) => s.colors);
   const isDark = useThemeStore((s) => s.isDark);
+  const plan = useAuthStore((s) => s.plan);
+
+  // Route guard: block deep link access to pro/team routes
+  const screenListeners = useCallback(() => ({
+    beforeRemove: () => {},
+    focus: (e: any) => {
+      const routeName = e?.target?.split('-')?.[0];
+      if (!routeName) return;
+      const required = ROUTE_PLAN_MAP[routeName];
+      if (!required) return;
+      const hasAccess =
+        required === 'pro' ? (plan === 'pro' || plan === 'team') :
+        required === 'team' ? plan === 'team' : true;
+      if (!hasAccess) {
+        router.replace('/paywall' as any);
+      }
+    },
+  }), [plan, router]);
 
   useEffect(() => {
     initialize();
@@ -68,6 +87,7 @@ export default function RootLayout() {
     <>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <Stack
+        screenListeners={screenListeners}
         screenOptions={{
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,

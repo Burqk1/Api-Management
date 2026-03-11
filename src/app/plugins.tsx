@@ -124,10 +124,21 @@ export default function PluginsScreen() {
     setShowAdd(false);
   };
 
+  const BLOCKED = ['fetch', 'XMLHttpRequest', 'WebSocket', 'import', 'require', 'eval', 'Function', 'setTimeout', 'setInterval', 'process', 'global', 'globalThis', 'window', 'AsyncStorage', 'SecureStore', 'supabase', 'document', 'navigator'];
+
   const testPlugin = (plugin: Plugin) => {
+    // Security: check for blocked keywords
+    for (const kw of BLOCKED) {
+      const regex = new RegExp(`(?<!['".\`\\w])${kw}(?!['".\`\\w])`, 'g');
+      if (regex.test(plugin.code)) {
+        Alert.alert('Security Error', `"${kw}" is not allowed in plugin code`);
+        save(plugins.map((p) => p.id === plugin.id ? { ...p, lastError: `Blocked: ${kw}` } : p));
+        return;
+      }
+    }
     try {
-      // Basic syntax check
-      new Function('request', 'response', 'config', plugin.code);
+      // Syntax check with shadowed dangerous globals
+      new Function('request', 'response', 'config', 'fetch', 'eval', 'Function', 'process', 'globalThis', plugin.code);
       save(plugins.map((p) => p.id === plugin.id ? { ...p, runCount: p.runCount + 1, lastRun: Date.now(), lastError: undefined } : p));
       Alert.alert('Success', 'Plugin syntax is valid and ready to use');
     } catch (e: any) {

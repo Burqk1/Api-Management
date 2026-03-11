@@ -147,7 +147,9 @@ export default function GraphQLExplorerScreen() {
         headers: buildHeaders(),
         body: JSON.stringify({ query: INTROSPECTION_QUERY }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any;
+      try { json = JSON.parse(text); } catch { throw new Error('Server returned non-JSON response'); }
 
       if (json.errors) {
         setError(json.errors.map((e: any) => e.message).join('\n'));
@@ -174,7 +176,7 @@ export default function GraphQLExplorerScreen() {
     try {
       let parsedVars: any = undefined;
       if (variables.trim()) {
-        parsedVars = JSON.parse(resolveVariables(variables));
+        try { parsedVars = JSON.parse(resolveVariables(variables)); } catch { throw new Error('Invalid JSON in variables'); }
       }
 
       const res = await fetch(url, {
@@ -185,7 +187,9 @@ export default function GraphQLExplorerScreen() {
           variables: parsedVars,
         }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: any;
+      try { json = JSON.parse(text); } catch { throw new Error('Server returned non-JSON response'); }
       setResponse(JSON.stringify(json, null, 2));
       setActiveTab('response');
     } catch (err: any) {

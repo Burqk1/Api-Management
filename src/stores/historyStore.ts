@@ -20,7 +20,7 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
     try {
       const data = await AsyncStorage.getItem(STORAGE_KEY);
       if (data) set({ versions: JSON.parse(data) });
-    } catch {}
+    } catch (e) { console.warn('[historyStore] Failed to initialize:', e); }
   },
 
   saveVersion: (endpoint, label) => {

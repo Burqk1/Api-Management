@@ -41,7 +41,7 @@ export default function WatchCompanionScreen() {
   const { colors, isDark } = useTheme();
   const t = useLanguageStore((s) => s.t);
   const cardBg = isDark ? colors.surface : colors.card;
-  const monitors = useMonitorStore((s) => s.checks);
+  const checks = useMonitorStore((s) => s.checks);
   const endpoints = useApiStore((s) => s.endpoints);
   const callLogs = useApiStore((s) => s.callLogs);
 
@@ -60,8 +60,8 @@ export default function WatchCompanionScreen() {
     saveConfig({ ...config, pinnedEndpoints: pinned });
   };
 
-  const upCount = monitors.filter((m) => m.isUp === true).length;
-  const totalMonitors = monitors.length;
+  const upCount = checks.filter((m) => m.isUp === true).length;
+  const totalMonitors = checks.length;
   const todayCalls = callLogs.filter((l) => Date.now() - l.timestamp < 86400000).length;
 
   const complications: { key: WatchConfig['complication']; label: string; icon: string }[] = [

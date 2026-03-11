@@ -29,6 +29,6 @@ export const useProxyStore = create<ProxyState>((set, get) => ({
     try {
       const saved = await AsyncStorage.getItem('proxy_config');
       if (saved) set({ proxy: JSON.parse(saved) });
-    } catch {}
+    } catch (e) { console.warn('[proxyStore] Failed to initialize:', e); }
   },
 }));

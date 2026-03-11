@@ -102,6 +102,6 @@ export const useOfflineStore = create<OfflineState>((set, get) => ({
         const online = state.isConnected ?? true;
         get().setOnline(online);
       });
-    } catch {}
+    } catch (e) { console.warn('[offlineStore] Failed to initialize:', e); }
   },
 }));

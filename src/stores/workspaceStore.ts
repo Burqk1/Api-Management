@@ -74,6 +74,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         workspaces: wsData ? JSON.parse(wsData) : [],
         activeWorkspaceId: activeData ? JSON.parse(activeData) : null,
       });
-    } catch {}
+    } catch (e) { console.warn('[workspaceStore] Failed to initialize:', e); }
   },
 }));

@@ -15,7 +15,6 @@ import { useSubscriptionStore } from '../stores/subscriptionStore';
 import { useCookieStore } from '../stores/cookieStore';
 import { useProxyStore } from '../stores/proxyStore';
 import { useHistoryStore } from '../stores/historyStore';
-import { useSecurityStore } from '../stores/securityStore';
 import { useWorkspaceStore } from '../stores/workspaceStore';
 import { useCostGuardStore } from '../stores/costGuardStore';
 
@@ -33,7 +32,6 @@ export default function RootLayout() {
   const initCookie = useCookieStore((s) => s.initialize);
   const initProxy = useProxyStore((s) => s.initialize);
   const initHistory = useHistoryStore((s) => s.initialize);
-  const initSecurity = useSecurityStore((s) => s.initialize);
   const initWorkspace = useWorkspaceStore((s) => s.initialize);
   const initCostGuard = useCostGuardStore((s) => s.initialize);
   const router = useRouter();
@@ -55,7 +53,6 @@ export default function RootLayout() {
     initCookie();
     initProxy();
     initHistory();
-    initSecurity();
     initWorkspace();
     initCostGuard();
 
@@ -233,10 +230,6 @@ export default function RootLayout() {
           options={{ headerBackTitle: t('cancel'), title: t('dynamicVariables') || 'Dynamic Variables', presentation: 'modal' }}
         />
         <Stack.Screen
-          name="lockscreen"
-          options={{ headerShown: false, presentation: 'fullScreenModal' }}
-        />
-        <Stack.Screen
           name="mqtt"
           options={{ headerBackTitle: t('cancel'), title: t('mqttClient') || 'MQTT Client', presentation: 'modal' }}
         />
@@ -405,10 +398,6 @@ export default function RootLayout() {
           options={{ headerBackTitle: t('cancel'), title: 'Test Assertions', presentation: 'modal' }}
         />
         <Stack.Screen
-          name="biometric"
-          options={{ headerBackTitle: t('cancel'), title: 'Face ID', presentation: 'modal' }}
-        />
-        <Stack.Screen
           name="ioswidget"
           options={{ headerBackTitle: t('cancel'), title: 'iOS Widgets', presentation: 'modal' }}
         />
@@ -427,6 +416,34 @@ export default function RootLayout() {
         <Stack.Screen
           name="responsedownload"
           options={{ headerBackTitle: t('cancel'), title: 'Response Download', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="requesttimeout"
+          options={{ headerBackTitle: t('cancel'), title: 'Request Timeout', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="syntaxhighlight"
+          options={{ headerBackTitle: t('cancel'), title: 'Syntax Highlight', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="harimport"
+          options={{ headerBackTitle: t('cancel'), title: 'HAR Import', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="networkstatus"
+          options={{ headerBackTitle: t('cancel'), title: 'Network Status', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="codegen"
+          options={{ headerBackTitle: t('cancel'), title: 'Code Generator', presentation: 'modal' }}
+        />
+        <Stack.Screen
+          name="spotlight"
+          options={{ headerShown: false, presentation: 'transparentModal', animation: 'fade' }}
+        />
+        <Stack.Screen
+          name="aitypegen"
+          options={{ headerBackTitle: t('cancel'), title: 'Type Generator', presentation: 'modal' }}
         />
       </Stack>
     </>

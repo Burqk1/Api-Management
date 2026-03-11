@@ -38,7 +38,7 @@ export default function PushNotifScreen() {
   const { colors, isDark } = useTheme();
   const t = useLanguageStore((s) => s.t);
   const cardBg = isDark ? colors.surface : colors.card;
-  const monitors = useMonitorStore((s) => s.checks);
+  const checks = useMonitorStore((s) => s.checks);
 
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [rules, setRules] = useState<NotifRule[]>([]);

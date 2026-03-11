@@ -134,6 +134,6 @@ export const useCookieStore = create<CookieState>((set, get) => ({
         cookies: saved ? JSON.parse(saved) : [],
         autoCapture: autoCapture ? JSON.parse(autoCapture) : true,
       });
-    } catch {}
+    } catch (e) { console.warn('[cookieStore] Failed to initialize:', e); }
   },
 }));

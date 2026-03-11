@@ -83,7 +83,7 @@ export default function BiometricScreen() {
   const authenticate = async (): Promise<boolean> => {
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Fetchlab Face ID',
+        promptMessage: 'Unlock Fetchlab',
         cancelLabel: 'Cancel',
         fallbackLabel: 'Use PIN',
         disableDeviceFallback: !!settings.fallbackPin,

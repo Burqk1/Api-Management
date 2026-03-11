@@ -56,6 +56,6 @@ export const useSecurityStore = create<SecurityState>((set, get) => ({
         isLocked: biometricEnabled,
         autoLockTimeout: timeout ? JSON.parse(timeout) : 0,
       });
-    } catch {}
+    } catch (e) { console.warn('[securityStore] Failed to initialize:', e); }
   },
 }));

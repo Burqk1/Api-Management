@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(cp -r /tmp/dev-toolbox-init/dev-toolbox/* \"c:\\\\Users\\\\burak\\\\OneDrive\\\\Masaüstü\\\\Yeni klasör \\(3\\)\\\\Universal Developer Toolbox/\")",
-      "Bash(cp /tmp/dev-toolbox-init/dev-toolbox/.gitignore \"c:\\\\Users\\\\burak\\\\OneDrive\\\\Masaüstü\\\\Yeni klasör \\(3\\)\\\\Universal Developer Toolbox/\")"
+      "Bash(cp /tmp/dev-toolbox-init/dev-toolbox/.gitignore \"c:\\\\Users\\\\burak\\\\OneDrive\\\\Masaüstü\\\\Yeni klasör \\(3\\)\\\\Universal Developer Toolbox/\")",
+      "Read(//c/Users/barakl/OneDrive/Masaüstü/Yeni klasör \\(3\\)/Api-management/src/stores/**)"
     ]
   }
 }

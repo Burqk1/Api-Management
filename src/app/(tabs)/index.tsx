@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,10 @@ import {
   ScrollView,
   StyleSheet,
   Platform,
+  Animated,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
@@ -15,8 +17,17 @@ import { useApiStore } from '../../stores/apiStore';
 import { useMonitorStore } from '../../stores/monitorStore';
 import { useEnvironmentStore } from '../../stores/environmentStore';
 import { useLanguageStore } from '../../stores/languageStore';
+import { useAuthStore } from '../../stores/authStore';
 import { METHOD_COLORS } from '../../types/api';
+import { EmptyState } from '../../components/ui/EmptyState';
 
+const getGreeting = (): string => {
+  const h = new Date().getHours();
+  if (h < 6) return 'goodNight';
+  if (h < 12) return 'goodMorning';
+  if (h < 18) return 'goodAfternoon';
+  return 'goodEvening';
+};
 
 export default function DashboardScreen() {
   const { colors, isDark } = useTheme();
@@ -33,9 +44,21 @@ export default function DashboardScreen() {
   const getDownCount = useMonitorStore((s) => s.getDownCount);
   const activeEnv = useEnvironmentStore((s) => s.getActiveEnv)();
   const t = useLanguageStore((s) => s.t);
+  const user = useAuthStore((s) => s.user);
+  const plan = useAuthStore((s) => s.plan);
 
   const favorites = useApiStore((s) => s.getFavorites)();
-  const recentLogs = useMemo(() => callLogs.slice(0, 15), [callLogs]);
+  const recentLogs = useMemo(() => callLogs.slice(0, 10), [callLogs]);
+
+  // Animated entrance
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(20)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 80, friction: 12, useNativeDriver: true }),
+    ]).start();
+  }, []);
 
   const stats = useMemo(() => ({
     totalCalls: getTotalCalls(),
@@ -48,28 +71,39 @@ export default function DashboardScreen() {
     endpoints: endpoints.length,
   }), [callLogs, collections, endpoints, checks]);
 
-  // Response time distribution for mini chart
-  const responseBars = useMemo(() => {
+  // Sparkline data from last 20 calls
+  const sparkline = useMemo(() => {
     const recent = callLogs.slice(0, 20).reverse();
-    if (recent.length === 0) return [];
+    if (recent.length < 2) return [];
     const max = Math.max(...recent.map((l) => l.responseTime), 1);
     return recent.map((l) => ({
-      height: Math.max((l.responseTime / max) * 40, 3),
-      color: l.success ? '#3FB950' : '#FF6961',
+      height: Math.max((l.responseTime / max) * 32, 2),
+      color: l.statusCode < 400 ? '#3FB950' : '#FF6961',
+      time: l.responseTime,
     }));
   }, [callLogs]);
 
   const formatTime = (ts: number) => {
-    const d = new Date(ts);
-    const now = new Date();
-    const diff = now.getTime() - ts;
+    const diff = Date.now() - ts;
     if (diff < 60000) return t('justNow');
     if (diff < 3600000) return `${Math.floor(diff / 60000)}${t('mAgo')}`;
     if (diff < 86400000) return `${Math.floor(diff / 3600000)}${t('hAgo')}`;
-    return d.toLocaleDateString();
+    return new Date(ts).toLocaleDateString();
   };
 
   const padding = Platform.OS === 'web' ? 32 : 20;
+  const cardBg = isDark ? colors.surface : colors.card;
+  const greeting = t(getGreeting());
+  const userName = user?.email?.split('@')[0] || '';
+
+  const QUICK_ACTIONS = [
+    { key: 'quickSend', icon: 'send-outline', color: '#30D158', route: '/quicksend' },
+    { key: 'newCollection', icon: 'folder-plus-outline', color: '#58A6FF', route: '/collection/new' },
+    { key: 'analytics', icon: 'chart-bar', color: '#BC8CFF', route: '/analytics' },
+    { key: 'environments', icon: 'swap-horizontal', color: '#D29922', route: '/environments' },
+    { key: 'globalSearch', icon: 'magnify', color: '#8B949E', route: '/search' },
+    { key: 'requestHistory', icon: 'history', color: '#D29922', route: '/history' },
+  ];
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top']}>
@@ -77,325 +111,255 @@ export default function DashboardScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { maxWidth: 900, alignSelf: 'center', width: '100%' }]}
       >
-        {/* Header */}
-        <View style={[styles.header, { paddingHorizontal: padding }]}>
-          <Text style={[styles.title, { color: colors.text }]}>{t('dashboard')}</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            {t('apiManagementOverview')}
-          </Text>
-        </View>
+        <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+          {/* Header with Greeting */}
+          <View style={[styles.header, { paddingHorizontal: padding }]}>
+            <View style={styles.headerTop}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.greeting, { color: colors.textSecondary }]}>
+                  {greeting}{userName ? `, ${userName}` : ''} 👋
+                </Text>
+                <Text style={[styles.title, { color: colors.text }]}>{t('dashboard')}</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.spotlightBtn, { backgroundColor: cardBg }]}
+                onPress={() => router.push('/spotlight' as any)}
+              >
+                <MaterialCommunityIcons name="magnify" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              {plan !== 'free' && (
+                <View style={[styles.proBadge, { backgroundColor: plan === 'team' ? '#58A6FF' : '#FF9500' }]}>
+                  <Text style={styles.proBadgeText}>{plan.toUpperCase()}</Text>
+                </View>
+              )}
+            </View>
+          </View>
 
-        {/* Stats Grid */}
-        <View style={[styles.statsGrid, { paddingHorizontal: padding }]}>
-          <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-            <View style={[styles.statIcon, { backgroundColor: '#3FB95018' }]}>
-              <MaterialCommunityIcons name="arrow-up-bold" size={18} color="#3FB950" />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.totalCalls}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('totalCalls')}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-            <View style={[styles.statIcon, { backgroundColor: '#58A6FF18' }]}>
-              <MaterialCommunityIcons name="clock-fast" size={18} color="#58A6FF" />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.avgResponse}ms</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('avgResponse')}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-            <View style={[styles.statIcon, { backgroundColor: '#3FB95018' }]}>
-              <MaterialCommunityIcons name="check-circle-outline" size={18} color="#3FB950" />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.successRate}%</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('successRate')}</Text>
-          </View>
-          <View style={[styles.statCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-            <View style={[styles.statIcon, { backgroundColor: '#D2992218' }]}>
-              <MaterialCommunityIcons name="calendar-today" size={18} color="#D29922" />
-            </View>
-            <Text style={[styles.statValue, { color: colors.text }]}>{stats.callsToday}</Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{t('today')}</Text>
-          </View>
-        </View>
+          {/* Gradient Stat Cards */}
+          <View style={[styles.statsGrid, { paddingHorizontal: padding }]}>
+            <LinearGradient
+              colors={isDark ? ['#1a3a2a', '#0d1f16'] : ['#e8f5e9', '#c8e6c9']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.statCardGradient}
+            >
+              <View style={styles.statHeader}>
+                <View style={[styles.statIcon, { backgroundColor: '#3FB95025' }]}>
+                  <MaterialCommunityIcons name="arrow-up-bold" size={16} color="#3FB950" />
+                </View>
+                <Text style={[styles.statLabel, { color: isDark ? '#8fdf9f' : '#2e7d32' }]}>{t('totalCalls')}</Text>
+              </View>
+              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#1b5e20' }]}>{stats.totalCalls.toLocaleString()}</Text>
+              {sparkline.length > 0 && (
+                <View style={styles.miniSparkline}>
+                  {sparkline.slice(-8).map((s, i) => (
+                    <View key={i} style={[styles.sparkBar, { height: s.height, backgroundColor: '#3FB95060' }]} />
+                  ))}
+                </View>
+              )}
+            </LinearGradient>
 
-        {/* Monitor Status */}
-        <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('monitorStatus')}</Text>
-          <View style={[styles.monitorBar, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-            <View style={styles.monitorRow}>
-              <View style={styles.monitorItem}>
-                <View style={[styles.monitorDot, { backgroundColor: '#3FB950' }]} />
-                <Text style={[styles.monitorValue, { color: colors.text }]}>{stats.upCount}</Text>
-                <Text style={[styles.monitorLabel, { color: colors.textSecondary }]}>{t('up')}</Text>
+            <LinearGradient
+              colors={isDark ? ['#1a2a3a', '#0d1620'] : ['#e3f2fd', '#bbdefb']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.statCardGradient}
+            >
+              <View style={styles.statHeader}>
+                <View style={[styles.statIcon, { backgroundColor: '#58A6FF25' }]}>
+                  <MaterialCommunityIcons name="clock-fast" size={16} color="#58A6FF" />
+                </View>
+                <Text style={[styles.statLabel, { color: isDark ? '#8fc4ff' : '#1565c0' }]}>{t('avgResponse')}</Text>
               </View>
-              <View style={[styles.monitorDivider, { backgroundColor: colors.divider }]} />
-              <View style={styles.monitorItem}>
-                <View style={[styles.monitorDot, { backgroundColor: '#FF6961' }]} />
-                <Text style={[styles.monitorValue, { color: colors.text }]}>{stats.downCount}</Text>
-                <Text style={[styles.monitorLabel, { color: colors.textSecondary }]}>{t('down')}</Text>
-              </View>
-              <View style={[styles.monitorDivider, { backgroundColor: colors.divider }]} />
-              <View style={styles.monitorItem}>
-                <View style={[styles.monitorDot, { backgroundColor: '#58A6FF' }]} />
-                <Text style={[styles.monitorValue, { color: colors.text }]}>{stats.collections}</Text>
-                <Text style={[styles.monitorLabel, { color: colors.textSecondary }]}>{t('collections')}</Text>
-              </View>
-              <View style={[styles.monitorDivider, { backgroundColor: colors.divider }]} />
-              <View style={styles.monitorItem}>
-                <View style={[styles.monitorDot, { backgroundColor: '#BC8CFF' }]} />
-                <Text style={[styles.monitorValue, { color: colors.text }]}>{stats.endpoints}</Text>
-                <Text style={[styles.monitorLabel, { color: colors.textSecondary }]}>{t('endpoints')}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
+              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#0d47a1' }]}>{stats.avgResponse}<Text style={styles.statUnit}>ms</Text></Text>
+            </LinearGradient>
 
-        {/* Response Time Chart */}
-        {responseBars.length > 0 && (
+            <LinearGradient
+              colors={isDark ? ['#2a1a3a', '#160d20'] : ['#f3e5f5', '#e1bee7']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.statCardGradient}
+            >
+              <View style={styles.statHeader}>
+                <View style={[styles.statIcon, { backgroundColor: '#BC8CFF25' }]}>
+                  <MaterialCommunityIcons name="check-circle-outline" size={16} color="#BC8CFF" />
+                </View>
+                <Text style={[styles.statLabel, { color: isDark ? '#d4b3ff' : '#6a1b9a' }]}>{t('successRate')}</Text>
+              </View>
+              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#4a148c' }]}>{stats.successRate}<Text style={styles.statUnit}>%</Text></Text>
+              {/* Mini progress ring */}
+              <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${Math.min(stats.successRate, 100)}%`, backgroundColor: '#BC8CFF' }]} />
+              </View>
+            </LinearGradient>
+
+            <LinearGradient
+              colors={isDark ? ['#3a2a1a', '#201610'] : ['#fff3e0', '#ffe0b2']}
+              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+              style={styles.statCardGradient}
+            >
+              <View style={styles.statHeader}>
+                <View style={[styles.statIcon, { backgroundColor: '#D2992225' }]}>
+                  <MaterialCommunityIcons name="calendar-today" size={16} color="#D29922" />
+                </View>
+                <Text style={[styles.statLabel, { color: isDark ? '#f0c866' : '#e65100' }]}>{t('today')}</Text>
+              </View>
+              <Text style={[styles.statValue, { color: isDark ? '#fff' : '#bf360c' }]}>{stats.callsToday}</Text>
+            </LinearGradient>
+          </View>
+
+          {/* Monitor Status */}
           <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('responseTimes')}</Text>
-            <View style={[styles.chartCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-              <View style={styles.barsContainer}>
-                {responseBars.map((bar, i) => (
-                  <View
-                    key={i}
-                    style={[styles.bar, { height: bar.height, backgroundColor: bar.color }]}
-                  />
-                ))}
-              </View>
-              <View style={styles.chartLabels}>
-                <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{t('oldest')}</Text>
-                <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{t('latest')}</Text>
-              </View>
-            </View>
-          </View>
-        )}
-
-        {/* Active Environment */}
-        <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
-          <TouchableOpacity
-            style={[styles.envBar, { backgroundColor: isDark ? colors.surface : colors.card }]}
-            onPress={() => router.push('/environments' as any)}
-          >
-            <View style={[styles.envDot, { backgroundColor: activeEnv?.color || colors.textTertiary }]} />
-            <Text style={[styles.envName, { color: colors.text }]}>
-              {activeEnv?.name || t('noEnvironment')}
-            </Text>
-            <Text style={[styles.envVarCount, { color: colors.textSecondary }]}>
-              {activeEnv ? `${activeEnv.variables.length} ${t('vars')}` : t('tapToConfigure')}
-            </Text>
-            <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Favorites */}
-        {favorites.length > 0 && (
-          <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('favorites')}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {favorites.map((ep) => (
-                  <TouchableOpacity
-                    key={ep.id}
-                    style={[styles.favCard, { backgroundColor: isDark ? colors.surface : colors.card }]}
-                    onPress={() => router.push(`/endpoint/${ep.id}` as any)}
-                  >
-                    <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[ep.method] + '20' }]}>
-                      <Text style={[styles.methodText, { color: METHOD_COLORS[ep.method] }]}>{ep.method}</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('monitorStatus')}</Text>
+            <View style={[styles.monitorBar, { backgroundColor: cardBg }]}>
+              <View style={styles.monitorRow}>
+                {[
+                  { value: stats.upCount, label: t('up'), color: '#3FB950' },
+                  { value: stats.downCount, label: t('down'), color: '#FF6961' },
+                  { value: stats.collections, label: t('collections'), color: '#58A6FF' },
+                  { value: stats.endpoints, label: t('endpoints'), color: '#BC8CFF' },
+                ].map((item, i) => (
+                  <React.Fragment key={item.label}>
+                    {i > 0 && <View style={[styles.monitorDivider, { backgroundColor: colors.divider }]} />}
+                    <View style={styles.monitorItem}>
+                      <View style={[styles.monitorDot, { backgroundColor: item.color }]} />
+                      <Text style={[styles.monitorValue, { color: colors.text }]}>{item.value}</Text>
+                      <Text style={[styles.monitorLabel, { color: colors.textSecondary }]}>{item.label}</Text>
                     </View>
-                    <Text style={[styles.favName, { color: colors.text }]} numberOfLines={1}>{ep.name}</Text>
-                    <MaterialCommunityIcons name="star" size={12} color="#FFD60A" />
-                  </TouchableOpacity>
+                  </React.Fragment>
                 ))}
               </View>
-            </ScrollView>
+            </View>
           </View>
-        )}
 
-        {/* Quick Actions */}
-        <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quickActions')}</Text>
-          <View style={styles.actionsGrid}>
+          {/* Active Environment */}
+          <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
             <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/collection/new' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#58A6FF18' }]}>
-                <MaterialCommunityIcons name="folder-plus-outline" size={22} color="#58A6FF" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('newCollection')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/endpoint/new' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#3FB95018' }]}>
-                <MaterialCommunityIcons name="plus-network-outline" size={22} color="#3FB950" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('newEndpoint')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/analytics' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#BC8CFF18' }]}>
-                <MaterialCommunityIcons name="chart-bar" size={22} color="#BC8CFF" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('analytics')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
+              style={[styles.envBar, { backgroundColor: cardBg }]}
               onPress={() => router.push('/environments' as any)}
             >
-              <View style={[styles.actionIcon, { backgroundColor: '#D2992218' }]}>
-                <MaterialCommunityIcons name="swap-horizontal" size={22} color="#D29922" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('environments')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/websocket' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#F778BA18' }]}>
-                <MaterialCommunityIcons name="lan-connect" size={22} color="#F778BA" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>WebSocket</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/search' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#8B949E18' }]}>
-                <MaterialCommunityIcons name="magnify" size={22} color="#8B949E" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('globalSearch')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/mockserver' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#FF950018' }]}>
-                <MaterialCommunityIcons name="server-network" size={22} color="#FF9500" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('mockServer')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/compare' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#64D2FF18' }]}>
-                <MaterialCommunityIcons name="compare" size={22} color="#64D2FF" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('compareRequests')}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/grpc' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#00BCD418' }]}>
-                <MaterialCommunityIcons name="server-network-off" size={22} color="#00BCD4" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>gRPC</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/jsonpath' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#FF950018' }]}>
-                <MaterialCommunityIcons name="code-json" size={22} color="#FF9500" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>JSONPath</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/workspaces' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#FF950018' }]}>
-                <MaterialCommunityIcons name="briefcase-outline" size={22} color="#FF9500" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('workspaces') || 'Workspaces'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/datadriven' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#00BCD418' }]}>
-                <MaterialCommunityIcons name="table-large" size={22} color="#00BCD4" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>Data Test</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/mqtt' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#9C27B018' }]}>
-                <MaterialCommunityIcons name="access-point-network" size={22} color="#9C27B0" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>MQTT</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/scheduledruns' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#607D8B18' }]}>
-                <MaterialCommunityIcons name="clock-outline" size={22} color="#607D8B" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('scheduledRuns') || 'Scheduled'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.actionBtn, { backgroundColor: isDark ? colors.surface : colors.card }]}
-              onPress={() => router.push('/contracttest' as any)}
-            >
-              <View style={[styles.actionIcon, { backgroundColor: '#4CAF5018' }]}>
-                <MaterialCommunityIcons name="file-check-outline" size={22} color="#4CAF50" />
-              </View>
-              <Text style={[styles.actionLabel, { color: colors.text }]}>{t('contractTesting') || 'Contract'}</Text>
+              <View style={[styles.envDot, { backgroundColor: activeEnv?.color || colors.textTertiary }]} />
+              <Text style={[styles.envName, { color: colors.text }]}>
+                {activeEnv?.name || t('noEnvironment')}
+              </Text>
+              <Text style={[styles.envVarCount, { color: colors.textSecondary }]}>
+                {activeEnv ? `${activeEnv.variables.length} ${t('vars')}` : t('tapToConfigure')}
+              </Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Recent Activity */}
-        <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('recentActivity')}</Text>
-          {recentLogs.length === 0 ? (
-            <View style={[styles.emptyCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-              <MaterialCommunityIcons name="history" size={40} color={colors.textTertiary} />
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                {t('noApiCallsYet')}
-              </Text>
+          {/* Favorites */}
+          {favorites.length > 0 && (
+            <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('favorites')}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {favorites.map((ep) => (
+                    <TouchableOpacity
+                      key={ep.id}
+                      style={[styles.favCard, { backgroundColor: cardBg }]}
+                      onPress={() => router.push(`/endpoint/${ep.id}` as any)}
+                    >
+                      <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[ep.method] + '20' }]}>
+                        <Text style={[styles.methodText, { color: METHOD_COLORS[ep.method] }]}>{ep.method}</Text>
+                      </View>
+                      <Text style={[styles.favName, { color: colors.text }]} numberOfLines={1}>{ep.name}</Text>
+                      <MaterialCommunityIcons name="star" size={12} color="#FFD60A" />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
             </View>
-          ) : (
-            <View style={[styles.listCard, { backgroundColor: isDark ? colors.surface : colors.card }]}>
-              {recentLogs.map((log, i) => (
+          )}
+
+          {/* Quick Actions */}
+          <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('quickActions')}</Text>
+            <View style={styles.actionsGrid}>
+              {QUICK_ACTIONS.map((action) => (
                 <TouchableOpacity
-                  key={log.id}
-                  activeOpacity={0.6}
-                  onPress={() => router.push(`/log/${log.id}` as any)}
-                  style={[
-                    styles.logRow,
-                    i < recentLogs.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
-                  ]}
+                  key={action.key}
+                  style={[styles.actionBtn, { backgroundColor: cardBg }]}
+                  onPress={() => router.push(action.route as any)}
                 >
-                  <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[log.method] + '20' }]}>
-                    <Text style={[styles.methodText, { color: METHOD_COLORS[log.method] }]}>
-                      {log.method}
-                    </Text>
+                  <View style={[styles.actionIcon, { backgroundColor: action.color + '18' }]}>
+                    <MaterialCommunityIcons name={action.icon as any} size={22} color={action.color} />
                   </View>
-                  <View style={styles.logInfo}>
-                    <Text style={[styles.logName, { color: colors.text }]} numberOfLines={1}>
-                      {log.endpointName || log.url}
-                    </Text>
-                    <Text style={[styles.logMeta, { color: colors.textTertiary }]}>
-                      {log.statusCode} · {log.responseTime}ms · {formatTime(log.timestamp)}
-                    </Text>
-                  </View>
-                  <View style={[styles.statusDot, { backgroundColor: log.success ? '#3FB950' : '#FF6961' }]} />
+                  <Text style={[styles.actionLabel, { color: colors.text }]}>{t(action.key)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
-        </View>
+          </View>
 
-        <View style={{ height: 40 }} />
+          {/* Response Time Chart */}
+          {sparkline.length > 0 && (
+            <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{t('responseTimes')}</Text>
+              <View style={[styles.chartCard, { backgroundColor: cardBg }]}>
+                <View style={styles.barsContainer}>
+                  {sparkline.map((bar, i) => (
+                    <View key={i} style={styles.barWrapper}>
+                      <View style={[styles.bar, { height: bar.height, backgroundColor: bar.color }]} />
+                    </View>
+                  ))}
+                </View>
+                <View style={styles.chartLabels}>
+                  <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{t('oldest')}</Text>
+                  <Text style={[styles.chartLabel, { color: colors.textTertiary }]}>{t('latest')}</Text>
+                </View>
+              </View>
+            </View>
+          )}
+
+          {/* Recent Activity */}
+          <View style={{ paddingHorizontal: padding, marginTop: 20 }}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text, marginBottom: 0 }]}>{t('recentActivity')}</Text>
+              {recentLogs.length > 0 && (
+                <TouchableOpacity onPress={() => router.push('/history' as any)}>
+                  <Text style={[styles.seeAll, { color: colors.primary }]}>{t('seeAll') || 'See All'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            {recentLogs.length === 0 ? (
+              <EmptyState
+                icon="rocket-launch-outline"
+                title={t('noApiCallsYet')}
+                subtitle={t('sendFirstRequest') || 'Send your first API request to see activity here'}
+                actionLabel={t('quickSend')}
+                onAction={() => router.push('/quicksend' as any)}
+                color="#58A6FF"
+              />
+            ) : (
+              <View style={[styles.listCard, { backgroundColor: cardBg }]}>
+                {recentLogs.map((log, i) => (
+                  <TouchableOpacity
+                    key={log.id}
+                    activeOpacity={0.6}
+                    onPress={() => router.push(`/log/${log.id}` as any)}
+                    style={[
+                      styles.logRow,
+                      i < recentLogs.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
+                    ]}
+                  >
+                    <View style={[styles.methodBadge, { backgroundColor: METHOD_COLORS[log.method] + '20' }]}>
+                      <Text style={[styles.methodText, { color: METHOD_COLORS[log.method] }]}>{log.method}</Text>
+                    </View>
+                    <View style={styles.logInfo}>
+                      <Text style={[styles.logName, { color: colors.text }]} numberOfLines={1}>
+                        {log.endpointName || log.url}
+                      </Text>
+                      <Text style={[styles.logMeta, { color: colors.textTertiary }]}>
+                        {log.statusCode} · {log.responseTime}ms · {formatTime(log.timestamp)}
+                      </Text>
+                    </View>
+                    <View style={[styles.statusDot, { backgroundColor: log.statusCode < 400 ? '#3FB950' : '#FF6961' }]} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
+
+          <View style={{ height: 40 }} />
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -404,35 +368,57 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   scroll: { paddingBottom: 20 },
-  header: { paddingTop: 16, paddingBottom: 4 },
+  header: { paddingTop: 8, paddingBottom: 4 },
+  headerTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  greeting: { fontSize: 15, fontWeight: '500', letterSpacing: -0.2, marginBottom: 2 },
   title: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  subtitle: { fontSize: 15, marginTop: 2, letterSpacing: -0.2 },
+  spotlightBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  proBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  proBadgeText: { color: '#FFF', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
 
   sectionTitle: { fontSize: 20, fontWeight: '700', letterSpacing: -0.4, marginBottom: 10 },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  seeAll: { fontSize: 14, fontWeight: '600' },
 
-  // Stats
+  // Gradient Stat Cards
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
     marginTop: 20,
   },
-  statCard: {
+  statCardGradient: {
     flex: 1,
     minWidth: '45%',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 14,
     gap: 6,
   },
+  statHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   statIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statValue: { fontSize: 24, fontWeight: '800', letterSpacing: -0.5 },
-  statLabel: { fontSize: 13, fontWeight: '500', letterSpacing: -0.1 },
+  statValue: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5, marginTop: 4 },
+  statUnit: { fontSize: 16, fontWeight: '600' },
+  statLabel: { fontSize: 12, fontWeight: '600', letterSpacing: -0.1 },
+  miniSparkline: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 20, marginTop: 4 },
+  sparkBar: { flex: 1, borderRadius: 2, minWidth: 3 },
+  progressBarBg: { height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, marginTop: 6, overflow: 'hidden' },
+  progressBarFill: { height: 4, borderRadius: 2 },
 
   // Monitor bar
   monitorBar: { borderRadius: 14, padding: 16 },
@@ -448,10 +434,11 @@ const styles = StyleSheet.create({
   barsContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 4,
-    height: 50,
+    gap: 3,
+    height: 40,
   },
-  bar: { flex: 1, borderRadius: 3, minWidth: 6 },
+  barWrapper: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  bar: { width: '100%', borderRadius: 3, minWidth: 4 },
   chartLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
   chartLabel: { fontSize: 11, fontWeight: '500' },
 
@@ -475,9 +462,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     flexBasis: '28%',
     borderRadius: 14,
-    padding: 16,
+    padding: 14,
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   actionIcon: {
     width: 44,
@@ -486,16 +473,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionLabel: { fontSize: 14, fontWeight: '600', letterSpacing: -0.2 },
+  actionLabel: { fontSize: 13, fontWeight: '600', letterSpacing: -0.2, textAlign: 'center' },
 
   // Activity
-  emptyCard: {
-    borderRadius: 14,
-    padding: 40,
-    alignItems: 'center',
-    gap: 10,
-  },
-  emptyText: { fontSize: 14, textAlign: 'center', letterSpacing: -0.2 },
   listCard: { borderRadius: 14, overflow: 'hidden' },
   logRow: {
     flexDirection: 'row',
@@ -518,5 +498,4 @@ const styles = StyleSheet.create({
 
   favCard: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 10, padding: 10, paddingRight: 14, minWidth: 120 },
   favName: { fontSize: 13, fontWeight: '600', maxWidth: 100 },
-
 });

@@ -318,6 +318,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
         callLogs: logs ? JSON.parse(logs) : [],
         apiKeys: keys ? JSON.parse(keys) : [],
       });
-    } catch {}
+    } catch (e) { console.warn('[apiStore] Failed to initialize:', e); }
   },
 }));

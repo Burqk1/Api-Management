@@ -38,7 +38,7 @@ export default function IOSWidgetScreen() {
   const { colors, isDark } = useTheme();
   const t = useLanguageStore((s) => s.t);
   const cardBg = isDark ? colors.surface : colors.card;
-  const monitors = useMonitorStore((s) => s.checks);
+  const checks = useMonitorStore((s) => s.checks);
   const endpoints = useApiStore((s) => s.endpoints);
   const callLogs = useApiStore((s) => s.callLogs);
 
@@ -84,8 +84,8 @@ export default function IOSWidgetScreen() {
   const todayCalls = callLogs.filter((l) => Date.now() - l.timestamp < 86400000).length;
   const avgTime = callLogs.length > 0 ? Math.round(callLogs.slice(0, 20).reduce((a, l) => a + l.responseTime, 0) / Math.min(callLogs.length, 20)) : 0;
   const successRate = callLogs.length > 0 ? Math.round((callLogs.filter((l) => l.statusCode >= 200 && l.statusCode < 300).length / callLogs.length) * 100) : 0;
-  const upCount = monitors.filter((m) => m.isUp === true).length;
-  const downCount = monitors.filter((m) => m.isUp === false).length;
+  const upCount = checks.filter((m) => m.isUp === true).length;
+  const downCount = checks.filter((m) => m.isUp === false).length;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['bottom']}>
@@ -108,7 +108,7 @@ export default function IOSWidgetScreen() {
         <View style={[styles.widgetPreview, { backgroundColor: cardBg }]}>
           <Text style={[styles.widgetLabel, { color: colors.textTertiary }]}>API STATUS</Text>
           <View style={styles.statusGrid}>
-            {monitors.slice(0, 4).map((m) => (
+            {checks.slice(0, 4).map((m) => (
               <View key={m.id} style={styles.statusItem}>
                 <View style={[styles.statusDot, { backgroundColor: m.isUp === true ? '#3FB950' : m.isUp === false ? '#FF6961' : '#FFD60A' }]} />
                 <Text style={{ color: colors.text, fontSize: 12, flex: 1 }} numberOfLines={1}>{m.endpointName}</Text>
@@ -117,8 +117,8 @@ export default function IOSWidgetScreen() {
                 </Text>
               </View>
             ))}
-            {monitors.length === 0 && (
-              <Text style={{ color: colors.textTertiary, fontSize: 12 }}>No monitors configured</Text>
+            {checks.length === 0 && (
+              <Text style={{ color: colors.textTertiary, fontSize: 12 }}>No checks configured</Text>
             )}
           </View>
           <View style={styles.previewFooter}>

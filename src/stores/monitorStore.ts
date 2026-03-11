@@ -31,7 +31,7 @@ async function sendDownAlert(name: string, url: string) {
       },
       trigger: null,
     });
-  } catch {}
+  } catch (e) { console.warn('[monitorStore] Failed to send alert:', e); }
 }
 
 interface MonitorState {
@@ -129,6 +129,6 @@ export const useMonitorStore = create<MonitorState>((set, get) => ({
       if (saved) state.checks = JSON.parse(saved);
       if (notifSaved !== null) state.notificationsEnabled = JSON.parse(notifSaved);
       set(state);
-    } catch {}
+    } catch (e) { console.warn('[monitorStore] Failed to initialize:', e); }
   },
 }));

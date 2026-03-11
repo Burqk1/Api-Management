@@ -245,7 +245,7 @@ export const useCostGuardStore = create<CostGuardState>((set, get) => ({
         get().resetDailyIfNeeded();
         get().clearExpiredCache();
       }
-    } catch {}
+    } catch (e) { console.warn('[costGuardStore] Failed to initialize:', e); }
   },
 
   persist: () => {

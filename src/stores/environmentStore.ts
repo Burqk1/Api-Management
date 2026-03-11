@@ -128,6 +128,6 @@ export const useEnvironmentStore = create<EnvironmentState>((set, get) => ({
         activeEnvId: activeData ? JSON.parse(activeData) : null,
         globalVariables: globalData ? JSON.parse(globalData) : [],
       });
-    } catch {}
+    } catch (e) { console.warn('[environmentStore] Failed to initialize:', e); }
   },
 }));

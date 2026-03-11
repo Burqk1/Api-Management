@@ -63,7 +63,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           .single();
         if (data?.plan) set({ plan: data.plan });
       }
-    } catch {}
+    } catch (e) { console.warn('[authStore] Failed to initialize:', e); }
     set({ loading: false });
 
     // Listen for auth changes

@@ -181,7 +181,7 @@ export const useMockStore = create<MockState>((set, get) => ({
         responseBody = responseBody.replace(/\{\{request\.body\.(\w+)\}\}/g, (_match, key) => {
           return reqBody[key] !== undefined ? String(reqBody[key]) : '';
         });
-      } catch {}
+      } catch { /* body parse is best-effort */ }
     }
     responseBody = responseBody
       .replace(/\{\{timestamp\}\}/g, String(Date.now()))
@@ -205,7 +205,7 @@ export const useMockStore = create<MockState>((set, get) => ({
     try {
       const saved = await AsyncStorage.getItem('mock_routes');
       if (saved) set({ routes: JSON.parse(saved) });
-    } catch {}
+    } catch (e) { console.warn('[mockStore] Failed to initialize:', e); }
   },
 }));
 

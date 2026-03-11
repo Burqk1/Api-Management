@@ -761,6 +761,38 @@ export const translations: Record<Language, Record<string, string>> = {
     requestInterceptorDesc: 'Intercept & modify requests/responses',
     testExecution: 'Test Execution',
     testExecutionDesc: 'Advanced test runner with breakpoints',
+    timeoutConfig: 'Request Timeout',
+    timeoutConfigDesc: 'Configure timeout & redirect settings',
+    syntaxHighlight: 'Syntax Highlight',
+    syntaxHighlightDesc: 'JSON/XML/HTML syntax highlighting viewer',
+    harImport: 'HAR Import',
+    harImportDesc: 'Import HTTP Archive files from browsers',
+    networkStatus: 'Network Status',
+    networkStatusDesc: 'Connection details & connectivity test',
+    codeGenerator: 'Code Generator',
+    codeGeneratorDesc: 'Generate code in 9 languages from endpoints',
+    aiTypeGen: 'Type Generator',
+    aiTypeGenDesc: 'Generate TypeScript/Swift/Kotlin types from responses',
+
+    // Dashboard v2
+    goodMorning: 'Good morning',
+    goodAfternoon: 'Good afternoon',
+    goodEvening: 'Good evening',
+    goodNight: 'Good night',
+    sendFirstRequest: 'Send your first API request to see activity here',
+    seeAll: 'See All',
+
+    // Paywall v2
+    advancedProtocols: 'Advanced Protocols',
+    securityTools: 'Security Tools',
+    mostPopular: 'POPULAR',
+    monthly: 'Monthly',
+    yearly: 'Yearly',
+    year: 'year',
+    feature: 'Feature',
+    trustedBy: 'Trusted by 10,000+ developers worldwide',
+    moneyBack: '30-day money-back guarantee. Cancel anytime.',
+
   },
 
   tr: {
@@ -1523,5 +1555,37 @@ export const translations: Record<Language, Record<string, string>> = {
     requestInterceptorDesc: 'Istekleri yakala ve degistir',
     testExecution: 'Test Calistirma',
     testExecutionDesc: 'Durdurma noktali gelismis test calistirici',
+    timeoutConfig: 'Istek Zaman Asimi',
+    timeoutConfigDesc: 'Zaman asimi ve yonlendirme ayarlari',
+    syntaxHighlight: 'Sozdizimi Renklendirme',
+    syntaxHighlightDesc: 'JSON/XML/HTML sozdizimi renklendirme goruntuleyici',
+    harImport: 'HAR Icerikle',
+    harImportDesc: 'Tarayicidan HTTP Arsiv dosyalarini icerikle',
+    networkStatus: 'Ag Durumu',
+    networkStatusDesc: 'Baglanti detaylari ve erisim testi',
+    codeGenerator: 'Kod Olusturucu',
+    codeGeneratorDesc: '9 dilde endpoint kodlari olustur',
+    aiTypeGen: 'Tip Olusturucu',
+    aiTypeGenDesc: 'Yanitlardan TypeScript/Swift/Kotlin tipleri olustur',
+
+    // Dashboard v2
+    goodMorning: 'Gunaydin',
+    goodAfternoon: 'Iyi gunler',
+    goodEvening: 'Iyi aksamlar',
+    goodNight: 'Iyi geceler',
+    sendFirstRequest: 'Aktiviteleri gormek icin ilk API isteginizi gonderin',
+    seeAll: 'Tumunu Gor',
+
+    // Paywall v2
+    advancedProtocols: 'Gelismis Protokoller',
+    securityTools: 'Guvenlik Araclari',
+    mostPopular: 'POPULER',
+    monthly: 'Aylik',
+    yearly: 'Yillik',
+    year: 'yil',
+    feature: 'Ozellik',
+    trustedBy: '10.000+ gelistirici tarafindan guveniliyor',
+    moneyBack: '30 gun para iade garantisi. Istediginiz zaman iptal edin.',
+
   },
 };

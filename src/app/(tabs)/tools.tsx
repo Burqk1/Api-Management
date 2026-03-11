@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useTheme } from '../../hooks/useTheme';
 import { useLanguageStore } from '../../stores/languageStore';
 import { useOfflineStore } from '../../stores/offlineStore';
+import { useAuthStore } from '../../stores/authStore';
 
 interface ToolItem {
   key: string;
@@ -20,6 +21,7 @@ interface ToolItem {
   color: string;
   route: string;
   badge?: string;
+  requiredPlan?: 'pro' | 'team';
 }
 
 export default function ToolsScreen() {
@@ -31,6 +33,16 @@ export default function ToolsScreen() {
 
   const cardBg = isDark ? colors.surface : colors.card;
   const padding = Platform.OS === 'web' ? 32 : 20;
+  const plan = useAuthStore((s) => s.plan);
+  const isProUser = plan === 'pro' || plan === 'team';
+  const isTeamUser = plan === 'team';
+
+  const canAccess = (item: ToolItem) => {
+    if (!item.requiredPlan) return true;
+    if (item.requiredPlan === 'pro') return isProUser;
+    if (item.requiredPlan === 'team') return isTeamUser;
+    return true;
+  };
 
   const sections: { titleKey: string; items: ToolItem[] }[] = [
     {
@@ -38,21 +50,22 @@ export default function ToolsScreen() {
       items: [
         { key: 'newCollection', icon: 'folder-plus-outline', color: '#58A6FF', route: '/collection/new' },
         { key: 'newEndpoint', icon: 'plus-network-outline', color: '#3FB950', route: '/endpoint/new' },
-        { key: 'websocketTesting', icon: 'lan-connect', color: '#F778BA', route: '/websocket' },
-        { key: 'sseTesting', icon: 'broadcast', color: '#FFD60A', route: '/sse' },
+        { key: 'websocketTesting', icon: 'lan-connect', color: '#F778BA', route: '/websocket', requiredPlan: 'pro' },
+        { key: 'sseTesting', icon: 'broadcast', color: '#FFD60A', route: '/sse', requiredPlan: 'pro' },
         { key: 'templates', icon: 'file-document-outline', color: '#64D2FF', route: '/templates' },
-        { key: 'mockServer', icon: 'server-network', color: '#FF9500', route: '/mockserver' },
+        { key: 'mockServer', icon: 'server-network', color: '#FF9500', route: '/mockserver', requiredPlan: 'pro' },
         { key: 'quickSend', icon: 'send-outline', color: '#30D158', route: '/quicksend' },
-        { key: 'requestChaining', icon: 'link-variant', color: '#BC8CFF', route: '/chaining' },
-        { key: 'benchmark', icon: 'speedometer', color: '#FF6961', route: '/benchmark' },
-        { key: 'graphqlExplorer', icon: 'graphql', color: '#E535AB', route: '/graphqlexplorer' },
-        { key: 'grpcClient', icon: 'server-network-off', color: '#00BCD4', route: '/grpc' },
-        { key: 'mqttClient', icon: 'access-point-network', color: '#9C27B0', route: '/mqtt' },
-        { key: 'soapClient', icon: 'xml', color: '#607D8B', route: '/soap' },
-        { key: 'webhookTesting', icon: 'webhook', color: '#E91E63', route: '/webhook' },
-        { key: 'loadTesting', icon: 'chart-timeline-variant-shimmer', color: '#FF5722', route: '/loadtest' },
-        { key: 'performanceWaterfall', icon: 'chart-waterfall', color: '#00BCD4', route: '/waterfall' },
-        { key: 'requestInterceptor', icon: 'radar', color: '#795548', route: '/interceptor' },
+        { key: 'requestChaining', icon: 'link-variant', color: '#BC8CFF', route: '/chaining', requiredPlan: 'pro' },
+        { key: 'benchmark', icon: 'speedometer', color: '#FF6961', route: '/benchmark', requiredPlan: 'pro' },
+        { key: 'graphqlExplorer', icon: 'graphql', color: '#E535AB', route: '/graphqlexplorer', requiredPlan: 'pro' },
+        { key: 'grpcClient', icon: 'server-network-off', color: '#00BCD4', route: '/grpc', requiredPlan: 'pro' },
+        { key: 'mqttClient', icon: 'access-point-network', color: '#9C27B0', route: '/mqtt', requiredPlan: 'pro' },
+        { key: 'soapClient', icon: 'xml', color: '#607D8B', route: '/soap', requiredPlan: 'pro' },
+        { key: 'webhookTesting', icon: 'webhook', color: '#E91E63', route: '/webhook', requiredPlan: 'pro' },
+        { key: 'loadTesting', icon: 'chart-timeline-variant-shimmer', color: '#FF5722', route: '/loadtest', requiredPlan: 'pro' },
+        { key: 'performanceWaterfall', icon: 'chart-waterfall', color: '#00BCD4', route: '/waterfall', requiredPlan: 'pro' },
+        { key: 'requestInterceptor', icon: 'radar', color: '#795548', route: '/interceptor', requiredPlan: 'pro' },
+        { key: 'timeoutConfig', icon: 'timer-outline', color: '#FF6961', route: '/requesttimeout' },
       ],
     },
     {
@@ -61,29 +74,32 @@ export default function ToolsScreen() {
         { key: 'analytics', icon: 'chart-bar', color: '#BC8CFF', route: '/analytics' },
         { key: 'compareRequests', icon: 'compare', color: '#64D2FF', route: '/compare' },
         { key: 'globalSearch', icon: 'magnify', color: '#8B949E', route: '/search' },
-        { key: 'aiAnalysis', icon: 'robot-outline', color: '#FF9500', route: '/aianalysis' },
-        { key: 'apiDocs', icon: 'file-document-multiple-outline', color: '#3FB950', route: '/apidocs' },
+        { key: 'aiAnalysis', icon: 'robot-outline', color: '#FF9500', route: '/aianalysis', requiredPlan: 'pro' },
+        { key: 'apiDocs', icon: 'file-document-multiple-outline', color: '#3FB950', route: '/apidocs', requiredPlan: 'pro' },
         { key: 'responseViewer', icon: 'eye-outline', color: '#64D2FF', route: '/responseviewer' },
         { key: 'requestHistory', icon: 'history', color: '#D29922', route: '/history' },
-        { key: 'jsonPathEvaluator', icon: 'code-json', color: '#FF9500', route: '/jsonpath' },
-        { key: 'testReport', icon: 'file-chart-outline', color: '#E535AB', route: '/testreport' },
-        { key: 'dataDrivenTesting', icon: 'table-large', color: '#00BCD4', route: '/datadriven' },
-        { key: 'contractTesting', icon: 'file-check-outline', color: '#4CAF50', route: '/contracttest' },
-        { key: 'responseDiff', icon: 'swap-horizontal-bold', color: '#FF5722', route: '/responsediff' },
-        { key: 'scheduledRuns', icon: 'clock-outline', color: '#607D8B', route: '/scheduledruns' },
-        { key: 'apiChangelog', icon: 'timeline-text-outline', color: '#795548', route: '/changelog' },
-        { key: 'apiGateway', icon: 'speedometer-slow', color: '#FF9800', route: '/ratelimit' },
-        { key: 'cloudMonitoring', icon: 'cloud-search-outline', color: '#2196F3', route: '/cloudmonitor' },
-        { key: 'certPinning', icon: 'shield-search', color: '#009688', route: '/certpin' },
-        { key: 'securityScanning', icon: 'shield-alert-outline', color: '#F44336', route: '/securityscan' },
-        { key: 'apiGovernance', icon: 'gavel', color: '#6D4C41', route: '/governance' },
-        { key: 'openApiValidation', icon: 'check-decagram-outline', color: '#4CAF50', route: '/openapivalid' },
-        { key: 'trendAnalytics', icon: 'trending-up', color: '#E91E63', route: '/trendanalytics' },
-        { key: 'visualDiff', icon: 'compare-horizontal', color: '#3F51B5', route: '/visualdiff' },
-        { key: 'testExecution', icon: 'test-tube', color: '#FF5722', route: '/testexec' },
-        { key: 'annotations', icon: 'comment-text-multiple-outline', color: '#00BCD4', route: '/annotations' },
-        { key: 'graphqlSubscriptions', icon: 'antenna', color: '#A371F7', route: '/graphqlsubs' },
-        { key: 'responseTransform', icon: 'swap-horizontal-variant', color: '#FF9800', route: '/responsetransform' },
+        { key: 'jsonPathEvaluator', icon: 'code-json', color: '#FF9500', route: '/jsonpath', requiredPlan: 'pro' },
+        { key: 'testReport', icon: 'file-chart-outline', color: '#E535AB', route: '/testreport', requiredPlan: 'pro' },
+        { key: 'dataDrivenTesting', icon: 'table-large', color: '#00BCD4', route: '/datadriven', requiredPlan: 'pro' },
+        { key: 'contractTesting', icon: 'file-check-outline', color: '#4CAF50', route: '/contracttest', requiredPlan: 'pro' },
+        { key: 'responseDiff', icon: 'swap-horizontal-bold', color: '#FF5722', route: '/responsediff', requiredPlan: 'pro' },
+        { key: 'scheduledRuns', icon: 'clock-outline', color: '#607D8B', route: '/scheduledruns', requiredPlan: 'pro' },
+        { key: 'apiChangelog', icon: 'timeline-text-outline', color: '#795548', route: '/changelog', requiredPlan: 'pro' },
+        { key: 'apiGateway', icon: 'speedometer-slow', color: '#FF9800', route: '/ratelimit', requiredPlan: 'pro' },
+        { key: 'cloudMonitoring', icon: 'cloud-search-outline', color: '#2196F3', route: '/cloudmonitor', requiredPlan: 'pro' },
+        { key: 'certPinning', icon: 'shield-search', color: '#009688', route: '/certpin', requiredPlan: 'pro' },
+        { key: 'securityScanning', icon: 'shield-alert-outline', color: '#F44336', route: '/securityscan', requiredPlan: 'pro' },
+        { key: 'apiGovernance', icon: 'gavel', color: '#6D4C41', route: '/governance', requiredPlan: 'pro' },
+        { key: 'openApiValidation', icon: 'check-decagram-outline', color: '#4CAF50', route: '/openapivalid', requiredPlan: 'pro' },
+        { key: 'trendAnalytics', icon: 'trending-up', color: '#E91E63', route: '/trendanalytics', requiredPlan: 'pro' },
+        { key: 'visualDiff', icon: 'compare-horizontal', color: '#3F51B5', route: '/visualdiff', requiredPlan: 'pro' },
+        { key: 'testExecution', icon: 'test-tube', color: '#FF5722', route: '/testexec', requiredPlan: 'pro' },
+        { key: 'annotations', icon: 'comment-text-multiple-outline', color: '#00BCD4', route: '/annotations', requiredPlan: 'pro' },
+        { key: 'graphqlSubscriptions', icon: 'antenna', color: '#A371F7', route: '/graphqlsubs', requiredPlan: 'pro' },
+        { key: 'responseTransform', icon: 'swap-horizontal-variant', color: '#FF9800', route: '/responsetransform', requiredPlan: 'pro' },
+        { key: 'syntaxHighlight', icon: 'code-tags', color: '#E535AB', route: '/syntaxhighlight', requiredPlan: 'pro' },
+        { key: 'codeGenerator', icon: 'code-braces', color: '#00BCD4', route: '/codegen', requiredPlan: 'pro' },
+        { key: 'aiTypeGen', icon: 'language-typescript', color: '#3178C6', route: '/aitypegen', requiredPlan: 'pro' },
       ],
     },
     {
@@ -91,20 +107,21 @@ export default function ToolsScreen() {
       items: [
         { key: 'environments', icon: 'swap-horizontal', color: '#D29922', route: '/environments' },
         { key: 'cookieManager', icon: 'cookie-outline', color: '#FF9500', route: '/cookies' },
-        { key: 'proxySettings', icon: 'shield-lock-outline', color: '#BC8CFF', route: '/proxy' },
-        { key: 'sslCertificates', icon: 'certificate-outline', color: '#58A6FF', route: '/sslconfig' },
+        { key: 'proxySettings', icon: 'shield-lock-outline', color: '#BC8CFF', route: '/proxy', requiredPlan: 'pro' },
+        { key: 'sslCertificates', icon: 'certificate-outline', color: '#58A6FF', route: '/sslconfig', requiredPlan: 'pro' },
         { key: 'importData', icon: 'import', color: '#58A6FF', route: '/import' },
-        { key: 'workspaces', icon: 'briefcase-outline', color: '#FF9500', route: '/workspaces' },
-        { key: 'dynamicVariables', icon: 'variable', color: '#E535AB', route: '/dynamicvars' },
+        { key: 'harImport', icon: 'web', color: '#FF9500', route: '/harimport', requiredPlan: 'pro' },
+        { key: 'workspaces', icon: 'briefcase-outline', color: '#FF9500', route: '/workspaces', requiredPlan: 'pro' },
+        { key: 'dynamicVariables', icon: 'variable', color: '#E535AB', route: '/dynamicvars', requiredPlan: 'pro' },
         { key: 'variableQuickLook', icon: 'eye-settings-outline', color: '#FF9800', route: '/variablelookup' },
         { key: 'keyboardShortcuts', icon: 'keyboard-outline', color: '#795548', route: '/keyboardshortcuts' },
-        { key: 'snippetLibrary', icon: 'code-brackets', color: '#4CAF50', route: '/snippets' },
-        { key: 'variableEncryption', icon: 'shield-lock-outline', color: '#9C27B0', route: '/varencrypt' },
-        { key: 'bulkOperations', icon: 'checkbox-multiple-marked-outline', color: '#FF5722', route: '/bulkops' },
-        { key: 'plugins', icon: 'puzzle-outline', color: '#3F51B5', route: '/plugins' },
-        { key: 'smartSuggestions', icon: 'lightbulb-on-outline', color: '#FFC107', route: '/smartsuggest' },
-        { key: 'cloudAuth', icon: 'cloud-lock-outline', color: '#FF9800', route: '/awsauth' },
-        { key: 'fakeDataGenerator', icon: 'auto-fix', color: '#E91E63', route: '/fakegen' },
+        { key: 'snippetLibrary', icon: 'code-brackets', color: '#4CAF50', route: '/snippets', requiredPlan: 'pro' },
+        { key: 'variableEncryption', icon: 'shield-lock-outline', color: '#9C27B0', route: '/varencrypt', requiredPlan: 'pro' },
+        { key: 'bulkOperations', icon: 'checkbox-multiple-marked-outline', color: '#FF5722', route: '/bulkops', requiredPlan: 'pro' },
+        { key: 'plugins', icon: 'puzzle-outline', color: '#3F51B5', route: '/plugins', requiredPlan: 'pro' },
+        { key: 'smartSuggestions', icon: 'lightbulb-on-outline', color: '#FFC107', route: '/smartsuggest', requiredPlan: 'pro' },
+        { key: 'cloudAuth', icon: 'cloud-lock-outline', color: '#FF9800', route: '/awsauth', requiredPlan: 'pro' },
+        { key: 'fakeDataGenerator', icon: 'auto-fix', color: '#E91E63', route: '/fakegen', requiredPlan: 'pro' },
       ],
     },
     {
@@ -112,33 +129,32 @@ export default function ToolsScreen() {
       items: [
         { key: 'quickActions', icon: 'lightning-bolt', color: '#FFD60A', route: '/quickactions' },
         { key: 'curlImport', icon: 'console-line', color: '#3FB950', route: '/curlimport' },
-        { key: 'qrShare', icon: 'qrcode', color: '#58A6FF', route: '/qrshare' },
-        { key: 'scanDetect', icon: 'text-recognition', color: '#BC8CFF', route: '/camerascan' },
+        { key: 'qrShare', icon: 'qrcode', color: '#58A6FF', route: '/qrshare', requiredPlan: 'pro' },
+        { key: 'scanDetect', icon: 'text-recognition', color: '#BC8CFF', route: '/camerascan', requiredPlan: 'pro' },
         { key: 'fileUpload', icon: 'file-upload-outline', color: '#FF9500', route: '/fileupload' },
       ],
     },
     {
       titleKey: 'authTools',
       items: [
-        { key: 'oauth2Flow', icon: 'shield-key-outline', color: '#58A6FF', route: '/oauth2' },
-        { key: 'biometricAuth', icon: 'face-recognition', color: '#3FB950', route: '/biometric' },
+        { key: 'oauth2Flow', icon: 'shield-key-outline', color: '#58A6FF', route: '/oauth2', requiredPlan: 'pro' },
       ],
     },
     {
       titleKey: 'testingTools',
       items: [
-        { key: 'prePostScripts', icon: 'script-text-outline', color: '#BC8CFF', route: '/prerequest' },
-        { key: 'assertionBuilder', icon: 'check-decagram-outline', color: '#3FB950', route: '/assertions' },
-        { key: 'postmanCollectionImport', icon: 'application-import', color: '#FF6961', route: '/postmanimport' },
+        { key: 'prePostScripts', icon: 'script-text-outline', color: '#BC8CFF', route: '/prerequest', requiredPlan: 'pro' },
+        { key: 'assertionBuilder', icon: 'check-decagram-outline', color: '#3FB950', route: '/assertions', requiredPlan: 'pro' },
+        { key: 'postmanCollectionImport', icon: 'application-import', color: '#FF6961', route: '/postmanimport', requiredPlan: 'pro' },
       ],
     },
     {
       titleKey: 'iosFeatures',
       items: [
-        { key: 'iosWidgets', icon: 'widgets-outline', color: '#58A6FF', route: '/ioswidget' },
-        { key: 'appleWatch', icon: 'watch-variant', color: '#3FB950', route: '/watchcompanion' },
-        { key: 'pushAlerts', icon: 'bell-ring-outline', color: '#FF6961', route: '/pushnotif' },
-        { key: 'shareExtension', icon: 'share-variant-outline', color: '#BC8CFF', route: '/shareext' },
+        { key: 'iosWidgets', icon: 'widgets-outline', color: '#58A6FF', route: '/ioswidget', requiredPlan: 'pro' },
+        { key: 'appleWatch', icon: 'watch-variant', color: '#3FB950', route: '/watchcompanion', requiredPlan: 'pro' },
+        { key: 'pushAlerts', icon: 'bell-ring-outline', color: '#FF6961', route: '/pushnotif', requiredPlan: 'pro' },
+        { key: 'shareExtension', icon: 'share-variant-outline', color: '#BC8CFF', route: '/shareext', requiredPlan: 'pro' },
         { key: 'responseDownload', icon: 'download-circle-outline', color: '#FFD60A', route: '/responsedownload' },
       ],
     },
@@ -146,8 +162,9 @@ export default function ToolsScreen() {
       titleKey: 'networkTools',
       items: [
         { key: 'offlineQueue', icon: 'cloud-off-outline', color: isOnline ? '#3FB950' : '#FF6961', route: '/offlinequeue', badge: queueCount > 0 ? String(queueCount) : undefined },
-        { key: 'teamSync', icon: 'account-group-outline', color: '#58A6FF', route: '/teamsync' },
-        { key: 'gitSync', icon: 'git', color: '#F44336', route: '/gitsync' },
+        { key: 'networkStatus', icon: 'network-outline', color: '#58A6FF', route: '/networkstatus' },
+        { key: 'teamSync', icon: 'account-group-outline', color: '#58A6FF', route: '/teamsync', requiredPlan: 'team' },
+        { key: 'gitSync', icon: 'git', color: '#F44336', route: '/gitsync', requiredPlan: 'team' },
       ],
     },
   ];
@@ -182,31 +199,41 @@ export default function ToolsScreen() {
           <View key={section.titleKey} style={{ paddingHorizontal: padding, marginTop: 24 }}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>{t(section.titleKey)}</Text>
             <View style={[styles.sectionCard, { backgroundColor: cardBg }]}>
-              {section.items.map((item, i) => (
-                <TouchableOpacity
-                  key={item.key}
-                  activeOpacity={0.6}
-                  onPress={() => router.push(item.route as any)}
-                  style={[
-                    styles.toolRow,
-                    i < section.items.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
-                  ]}
-                >
-                  <View style={[styles.toolIcon, { backgroundColor: item.color + '18' }]}>
-                    <MaterialCommunityIcons name={item.icon as any} size={22} color={item.color} />
-                  </View>
-                  <View style={styles.toolInfo}>
-                    <Text style={[styles.toolName, { color: colors.text }]}>{t(item.key)}</Text>
-                    <Text style={[styles.toolDesc, { color: colors.textTertiary }]}>{t(item.key + 'Desc')}</Text>
-                  </View>
-                  {item.badge && (
-                    <View style={[styles.badge, { backgroundColor: '#FF9500' }]}>
-                      <Text style={styles.badgeText}>{item.badge}</Text>
+              {section.items.map((item, i) => {
+                const locked = !canAccess(item);
+                return (
+                  <TouchableOpacity
+                    key={item.key}
+                    activeOpacity={locked ? 0.4 : 0.6}
+                    onPress={() => locked ? router.push('/paywall') : router.push(item.route as any)}
+                    style={[
+                      styles.toolRow,
+                      i < section.items.length - 1 && { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.divider },
+                      locked && { opacity: 0.6 },
+                    ]}
+                  >
+                    <View style={[styles.toolIcon, { backgroundColor: item.color + '18' }]}>
+                      <MaterialCommunityIcons name={item.icon as any} size={22} color={item.color} />
                     </View>
-                  )}
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={colors.textTertiary} />
-                </TouchableOpacity>
-              ))}
+                    <View style={styles.toolInfo}>
+                      <Text style={[styles.toolName, { color: colors.text }]}>{t(item.key)}</Text>
+                      <Text style={[styles.toolDesc, { color: colors.textTertiary }]}>{t(item.key + 'Desc')}</Text>
+                    </View>
+                    {locked && (
+                      <View style={[styles.planBadge, { backgroundColor: item.requiredPlan === 'team' ? '#58A6FF' : '#FF9500' }]}>
+                        <MaterialCommunityIcons name="lock" size={10} color="#FFF" />
+                        <Text style={styles.planBadgeText}>{item.requiredPlan === 'team' ? 'TEAM' : 'PRO'}</Text>
+                      </View>
+                    )}
+                    {item.badge && !locked && (
+                      <View style={[styles.badge, { backgroundColor: '#FF9500' }]}>
+                        <Text style={styles.badgeText}>{item.badge}</Text>
+                      </View>
+                    )}
+                    <MaterialCommunityIcons name={locked ? 'lock-outline' : 'chevron-right'} size={18} color={colors.textTertiary} />
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         ))}
@@ -263,4 +290,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   badgeText: { color: '#FFF', fontSize: 12, fontWeight: '700' },
+  planBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  planBadgeText: { color: '#FFF', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 });
